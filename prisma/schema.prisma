@@ -11,3 +11,10 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model AppConfig {
+  id                    String   @id @default("default")
+  defaultWithdrawalRate Float    @default(0.30)
+  defaultSavingsPercent Float    @default(20)
+  updatedAt             DateTime @updatedAt
+}
