@@ -10,15 +10,13 @@ export async function GET() {
   if (!config) {
     return NextResponse.json(
       {
-        defaultWithdrawalRate: 0.3,
-        defaultSavingsPercent: 20,
+        defaultInvestmentReturnRate: 0.25,
       },
       { status: 200 },
     );
   }
 
   return NextResponse.json({
-    defaultWithdrawalRate: config.defaultWithdrawalRate,
-    defaultSavingsPercent: config.defaultSavingsPercent,
+    defaultInvestmentReturnRate: config.defaultWithdrawalRate,
   });
 }

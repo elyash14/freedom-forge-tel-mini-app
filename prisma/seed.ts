@@ -19,8 +19,7 @@ async function main() {
     update: {},
     create: {
       id: "default",
-      defaultWithdrawalRate: 0.3,
-      defaultSavingsPercent: 20,
+      defaultWithdrawalRate: 0.25,
     },
   });
 }
