@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { FreedomGauge } from "@/components/freedom-calculator/FreedomGauge";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,21 +18,30 @@ import { Slider } from "@/components/ui/slider";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import {
-  calculateFreedomLine,
-  formatPercent,
-  formatToman,
-  type PathMode,
-  validateFreedomInputs,
+  calculateFreedom,
+  calculateRealReturn,
+  calculateWeightedNominalReturn,
+  normalizeAllocation,
+  validateCalculatorInputs,
+  type PortfolioAllocation,
 } from "@/lib/freedom-calculator";
+import { formatPercent, formatToman, formatYears } from "@/lib/freedom-format";
 import { cn } from "@/lib/utils";
 
-type AppConfigResponse = {
-  defaultInvestmentReturnRate: number;
+type AssetClassDto = {
+  id: string;
+  key: string;
+  labelFa: string;
+  labelEn: string;
+  historicalNominalReturn: number;
 };
 
-type ExchangeRateResponse = {
-  rate: number;
-  source: "live" | "fallback";
+type SavedPlan = {
+  id: string;
+  monthlyExpense: number;
+  targetCapital: number;
+  yearsToFreedom: number;
+  createdAt: string;
 };
 
 type FreedomCalculatorProps = {
@@ -40,131 +49,167 @@ type FreedomCalculatorProps = {
   dictionary: Dictionary;
 };
 
-export function FreedomCalculator({
-  locale,
-  dictionary,
-}: FreedomCalculatorProps) {
-  const [monthlyExpenses, setMonthlyExpenses] = useState("");
-  const [usdTomanRate, setUsdTomanRate] = useState("");
-  const [investmentReturnRate, setInvestmentReturnRate] = useState(0.25);
-  const [currentSavingsUsd, setCurrentSavingsUsd] = useState("0");
-  const [pathMode, setPathMode] = useState<PathMode>("yearsToInvest");
-  const [yearsToFreedom, setYearsToFreedom] = useState("10");
-  const [monthlyInvestmentUsd, setMonthlyInvestmentUsd] = useState("500");
-  const [rateSource, setRateSource] = useState<"live" | "fallback" | "manual">(
-    "manual",
-  );
+function assetLabel(asset: AssetClassDto, locale: Locale): string {
+  return locale === "fa" ? asset.labelFa : asset.labelEn;
+}
+
+export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps) {
+  const c = dictionary.calculator;
+  const [step, setStep] = useState(1);
+  const [monthlyExpense, setMonthlyExpense] = useState("");
+  const [initialCapital, setInitialCapital] = useState("0");
+  const [monthlyContribution, setMonthlyContribution] = useState(5_000_000);
+  const [allocation, setAllocation] = useState<PortfolioAllocation>({});
+  const [inflationRate, setInflationRate] = useState(0.45);
+  const [assetClasses, setAssetClasses] = useState<AssetClassDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
+  const [history, setHistory] = useState<SavedPlan[]>([]);
+
+  const initAllocation = useCallback((assets: AssetClassDto[]) => {
+    const even = 100 / assets.length;
+    setAllocation(Object.fromEntries(assets.map((a) => [a.key, even])));
+  }, []);
 
   useEffect(() => {
-    async function loadDefaults() {
+    async function load() {
       try {
-        const [configResponse, rateResponse] = await Promise.all([
+        const [configRes, assetsRes, plansRes] = await Promise.all([
           fetch("/api/config"),
-          fetch("/api/exchange-rate"),
+          fetch("/api/asset-classes"),
+          fetch("/api/plans"),
         ]);
 
-        if (!configResponse.ok || !rateResponse.ok) {
-          throw new Error("Failed to load defaults.");
+        if (!configRes.ok || !assetsRes.ok) {
+          throw new Error("load failed");
         }
 
-        const config = (await configResponse.json()) as AppConfigResponse;
-        const rate = (await rateResponse.json()) as ExchangeRateResponse;
+        const config = (await configRes.json()) as {
+          defaultInflationRate: number;
+        };
+        const assets = (await assetsRes.json()) as AssetClassDto[];
 
-        setInvestmentReturnRate(config.defaultInvestmentReturnRate);
-        setUsdTomanRate(String(rate.rate));
-        setRateSource(rate.source);
+        setInflationRate(config.defaultInflationRate);
+        setAssetClasses(assets);
+        initAllocation(assets);
+
+        if (plansRes.ok) {
+          const { plans } = (await plansRes.json()) as { plans: SavedPlan[] };
+          setHistory(plans);
+        }
       } catch {
-        setLoadError(dictionary.calculator.loadError);
-        setUsdTomanRate("90000");
-        setInvestmentReturnRate(0.25);
+        setLoadError(c.loadError);
       } finally {
         setIsLoading(false);
       }
     }
 
-    void loadDefaults();
-  }, [dictionary.calculator.loadError]);
+    void load();
+  }, [c.loadError, initAllocation]);
 
-  const parsedInputs = useMemo(
+  const assetInputs = useMemo(
+    () =>
+      assetClasses.map((a) => ({
+        key: a.key,
+        historicalNominalReturn: a.historicalNominalReturn,
+      })),
+    [assetClasses],
+  );
+
+  const normalizedAllocation = useMemo(
+    () =>
+      normalizeAllocation(
+        allocation,
+        assetClasses.map((a) => a.key),
+      ),
+    [allocation, assetClasses],
+  );
+
+  const allocationTotal = useMemo(
+    () =>
+      assetClasses.reduce((sum, a) => sum + (allocation[a.key] ?? 0), 0),
+    [allocation, assetClasses],
+  );
+
+  const parsed = useMemo(
     () => ({
-      monthlyExpensesToman: Number(monthlyExpenses),
-      usdTomanRate: Number(usdTomanRate),
-      investmentReturnRate,
-      currentSavingsUsd: Number(currentSavingsUsd) || 0,
-      mode: pathMode,
-      yearsToFreedom: Number(yearsToFreedom),
-      monthlyInvestmentUsd: Number(monthlyInvestmentUsd),
+      monthlyExpense: Number(monthlyExpense) || 0,
+      initialCapital: Number(initialCapital) || 0,
+      allocation: normalizedAllocation,
+      assetClasses: assetInputs,
+      inflationRate,
+      monthlyContribution,
     }),
     [
-      monthlyExpenses,
-      usdTomanRate,
-      investmentReturnRate,
-      currentSavingsUsd,
-      pathMode,
-      yearsToFreedom,
-      monthlyInvestmentUsd,
+      monthlyExpense,
+      initialCapital,
+      normalizedAllocation,
+      assetInputs,
+      inflationRate,
+      monthlyContribution,
     ],
   );
 
-  const validation = useMemo(
-    () => validateFreedomInputs(parsedInputs),
-    [parsedInputs],
+  const validation = useMemo(() => validateCalculatorInputs(parsed), [parsed]);
+  const result = useMemo(() => calculateFreedom(parsed), [parsed]);
+
+  const nominalPreview = useMemo(
+    () => calculateWeightedNominalReturn(normalizedAllocation, assetInputs),
+    [normalizedAllocation, assetInputs],
   );
 
-  const result = useMemo(() => {
-    if (!monthlyExpenses) {
-      return null;
-    }
+  const realPreview = useMemo(
+    () => calculateRealReturn(nominalPreview, inflationRate),
+    [nominalPreview, inflationRate],
+  );
 
-    return calculateFreedomLine(parsedInputs);
-  }, [monthlyExpenses, parsedInputs]);
+  const pmtMax = useMemo(() => {
+    const expense = Number(monthlyExpense) || 50_000_000;
+    return Math.max(expense, 10_000_000);
+  }, [monthlyExpense]);
 
-  const pathUnreachable =
-    monthlyExpenses &&
-    validation.isValid &&
-    pathMode === "monthlyToYears" &&
-    result === null;
+  function updateAllocation(key: string, value: number) {
+    setAllocation((prev) => ({ ...prev, [key]: value }));
+  }
 
-  async function refreshRate() {
-    setIsLoading(true);
-    setLoadError(null);
-
+  async function savePlan() {
+    if (!result) return;
+    setSaveState("saving");
     try {
-      const response = await fetch("/api/exchange-rate");
-      if (!response.ok) {
-        throw new Error("Failed to refresh rate.");
-      }
-
-      const rate = (await response.json()) as ExchangeRateResponse;
-      setUsdTomanRate(String(rate.rate));
-      setRateSource(rate.source);
+      const res = await fetch("/api/plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locale,
+          monthlyExpense: parsed.monthlyExpense,
+          initialCapital: parsed.initialCapital,
+          portfolioAllocation: normalizedAllocation,
+          inflationRate,
+          monthlyContribution,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const { plan } = (await res.json()) as { plan: SavedPlan };
+      setHistory((h) => [plan, ...h].slice(0, 20));
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
     } catch {
-      setLoadError(dictionary.calculator.refreshError);
-    } finally {
-      setIsLoading(false);
+      setSaveState("idle");
     }
   }
 
-  const rateSourceLabel =
-    rateSource === "live"
-      ? dictionary.calculator.rateSourceLive
-      : rateSource === "fallback"
-        ? dictionary.calculator.rateSourceFallback
-        : dictionary.calculator.rateSourceManual;
+  const steps = [c.step1, c.step2, c.step3, c.step4, c.step5];
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
       <header className="space-y-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2 text-center sm:text-start">
-            <h1 className="text-3xl font-bold tracking-tight">
-              {dictionary.calculator.title}
-            </h1>
-            <p className="text-zinc-600 dark:text-zinc-400">
-              {dictionary.calculator.subtitle}
-            </p>
+            <h1 className="text-3xl font-bold tracking-tight">{c.title}</h1>
+            <p className="text-zinc-600 dark:text-zinc-400">{c.subtitle}</p>
           </div>
           <LanguageSwitcher
             locale={locale}
@@ -172,221 +217,317 @@ export function FreedomCalculator({
             className="justify-center sm:justify-end"
           />
         </div>
+        <div className="flex justify-center sm:justify-end">
+          <Link
+            href={`/${locale}/settings`}
+            className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
+          >
+            {dictionary.nav.settings}
+          </Link>
+        </div>
+        <div className="flex gap-1">
+          {steps.map((label, i) => (
+            <div
+              key={label}
+              className={cn(
+                "flex-1 rounded-lg border px-2 py-2 text-center text-[10px] font-medium sm:text-xs",
+                step === i + 1
+                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                  : "border-zinc-200 text-zinc-500 dark:border-zinc-800",
+              )}
+            >
+              {i + 1}. {label}
+            </div>
+          ))}
+        </div>
       </header>
 
-      <FreedomGauge
-        result={result}
-        pathMode={pathMode}
-        locale={locale}
-        dictionary={dictionary}
-      />
+      {loadError && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          {loadError}
+        </p>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{dictionary.calculator.cardTitle}</CardTitle>
-          <CardDescription>{dictionary.calculator.cardDescription}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {loadError && (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-              {loadError}
-            </p>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="monthly-expenses">
-              {dictionary.calculator.monthlyExpenses}
-            </Label>
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{c.step1}</CardTitle>
+            <CardDescription>{c.monthlyExpenseHint}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label>{c.monthlyExpense}</Label>
             <Input
-              id="monthly-expenses"
               inputMode="numeric"
-              placeholder={dictionary.calculator.monthlyExpensesPlaceholder}
-              value={monthlyExpenses}
-              onChange={(event) => setMonthlyExpenses(event.target.value)}
+              placeholder={c.monthlyExpensePlaceholder}
+              value={monthlyExpense}
+              onChange={(e) => setMonthlyExpense(e.target.value)}
+              disabled={isLoading}
             />
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {dictionary.calculator.monthlyExpensesHint}
-            </p>
-            {monthlyExpenses && (
-              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
-                {formatToman(Number(monthlyExpenses), locale)}{" "}
-                {dictionary.calculator.toman}
-              </p>
-            )}
-          </div>
+            <span className="text-xs text-zinc-500">{c.toman}</span>
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="usd-rate">
-                {dictionary.calculator.usdTomanRate}
-              </Label>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-8 px-3 text-xs"
-                onClick={() => void refreshRate()}
-                disabled={isLoading}
-              >
-                {dictionary.calculator.refresh}
-              </Button>
-            </div>
+      {step === 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{c.step2}</CardTitle>
+            <CardDescription>{c.initialCapitalHint}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label>{c.initialCapital}</Label>
             <Input
-              id="usd-rate"
               inputMode="numeric"
-              value={usdTomanRate}
-              onChange={(event) => {
-                setUsdTomanRate(event.target.value);
-                setRateSource("manual");
-              }}
+              placeholder={c.initialCapitalPlaceholder}
+              value={initialCapital}
+              onChange={(e) => setInitialCapital(e.target.value)}
             />
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {dictionary.calculator.usdTomanHint}
-            </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {dictionary.calculator.rateSource}: {rateSourceLabel}
-            </p>
-          </div>
+            <span className="text-xs text-zinc-500">{c.toman}</span>
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="investment-return">
-                {dictionary.calculator.investmentReturnRate}
-              </Label>
-              <span className="text-sm font-medium tabular-nums">
-                {formatPercent(investmentReturnRate, locale)}
-              </span>
-            </div>
-            <Slider
-              id="investment-return"
-              min={0.05}
-              max={1}
-              step={0.01}
-              value={[investmentReturnRate]}
-              onValueChange={(value) =>
-                setInvestmentReturnRate(value[0] ?? 0.25)
-              }
-            />
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {dictionary.calculator.investmentReturnHint}
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="current-savings">
-              {dictionary.calculator.currentSavingsUsd}
-            </Label>
-            <Input
-              id="current-savings"
-              inputMode="decimal"
-              value={currentSavingsUsd}
-              onChange={(event) => setCurrentSavingsUsd(event.target.value)}
-            />
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {dictionary.calculator.currentSavingsHint}
-            </p>
-          </div>
-
-          <div className="space-y-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-            <p className="text-sm font-semibold">
-              {dictionary.calculator.pathTitle}
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setPathMode("yearsToInvest")}
-                className={cn(
-                  "rounded-lg border p-4 text-start transition-colors",
-                  pathMode === "yearsToInvest"
-                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900",
-                )}
-              >
-                <p className="font-medium">{dictionary.calculator.modeYears}</p>
-                <p
-                  className={cn(
-                    "mt-1 text-xs",
-                    pathMode === "yearsToInvest"
-                      ? "text-zinc-300 dark:text-zinc-600"
-                      : "text-zinc-500",
-                  )}
-                >
-                  {dictionary.calculator.modeYearsDescription}
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPathMode("monthlyToYears")}
-                className={cn(
-                  "rounded-lg border p-4 text-start transition-colors",
-                  pathMode === "monthlyToYears"
-                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900",
-                )}
-              >
-                <p className="font-medium">
-                  {dictionary.calculator.modeMonthly}
-                </p>
-                <p
-                  className={cn(
-                    "mt-1 text-xs",
-                    pathMode === "monthlyToYears"
-                      ? "text-zinc-300 dark:text-zinc-600"
-                      : "text-zinc-500",
-                  )}
-                >
-                  {dictionary.calculator.modeMonthlyDescription}
-                </p>
-              </button>
-            </div>
-
-            {pathMode === "yearsToInvest" ? (
-              <div className="space-y-2">
-                <Label htmlFor="years">
-                  {dictionary.calculator.yearsToFreedom}
-                </Label>
-                <Input
-                  id="years"
-                  inputMode="decimal"
-                  placeholder={dictionary.calculator.yearsToFreedomPlaceholder}
-                  value={yearsToFreedom}
-                  onChange={(event) => setYearsToFreedom(event.target.value)}
+      {step === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{c.portfolioTitle}</CardTitle>
+            <CardDescription>{c.portfolioHint}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {assetClasses.map((asset) => (
+              <div key={asset.id} className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <Label>{assetLabel(asset, locale)}</Label>
+                  <span className="font-medium">
+                    {Math.round(allocation[asset.key] ?? 0)}%
+                  </span>
+                </div>
+                <Slider
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={[allocation[asset.key] ?? 0]}
+                  onValueChange={(v) => updateAllocation(asset.key, v[0] ?? 0)}
+                  disabled={isLoading}
                 />
+              </div>
+            ))}
+            <p className="text-xs text-zinc-500">
+              {c.allocationTotal}: {Math.round(allocationTotal)}%
+            </p>
+            <div className="rounded-lg bg-zinc-100 p-4 text-sm dark:bg-zinc-900">
+              <p>
+                {c.nominalReturn}: {formatPercent(nominalPreview, locale)}
+              </p>
+              <p className="mt-1">
+                {c.realReturn}: {formatPercent(realPreview, locale)}
+              </p>
+              {realPreview <= 0 && (
+                <p className="mt-2 text-amber-700 dark:text-amber-300">
+                  {c.realReturnNegative}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 4 && result && (
+        <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
+          <CardHeader>
+            <CardTitle>{c.targetCapital}</CardTitle>
+            <CardDescription>{c.targetCapitalHint}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-3xl font-bold tabular-nums">
+              {formatToman(result.targetCapital, locale)} {c.toman}
+            </p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              {c.realReturn}: {formatPercent(result.realReturnRate, locale)}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 4 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{c.step4}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <Label>{c.monthlyContribution}</Label>
+                <span className="text-sm font-medium tabular-nums">
+                  {formatToman(monthlyContribution, locale)} {c.toman}
+                </span>
+              </div>
+              <Slider
+                min={0}
+                max={pmtMax}
+                step={500_000}
+                value={[monthlyContribution]}
+                onValueChange={(v) => setMonthlyContribution(v[0] ?? 0)}
+              />
+              <p className="text-xs text-zinc-500">{c.monthlyContributionHint}</p>
+            </div>
+
+            {result ? (
+              <div className="rounded-lg border p-4">
+                <p className="text-sm text-zinc-500">{c.yearsToFreedom}</p>
+                {result.yearsToFreedom === 0 ? (
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                    {c.alreadyFree}
+                  </p>
+                ) : (
+                  <p className="text-3xl font-bold tabular-nums">
+                    <span dir="ltr">{formatYears(result.yearsToFreedom, locale)}</span>{" "}
+                    {c.yearsUnit}
+                  </p>
+                )}
               </div>
             ) : (
-              <div className="space-y-2">
-                <Label htmlFor="monthly-investment">
-                  {dictionary.calculator.monthlyInvestmentUsd}
-                </Label>
-                <Input
-                  id="monthly-investment"
-                  inputMode="decimal"
-                  placeholder={
-                    dictionary.calculator.monthlyInvestmentPlaceholder
-                  }
-                  value={monthlyInvestmentUsd}
-                  onChange={(event) =>
-                    setMonthlyInvestmentUsd(event.target.value)
-                  }
-                />
-              </div>
+              <p className="text-sm text-red-600">
+                {validation.errors.includes("realReturnNonPositive")
+                  ? c.realReturnNegative
+                  : validation.errors.includes("unreachable") ||
+                      (!validation.isValid && monthlyContribution > 0)
+                    ? c.unreachable
+                    : dictionary.validation.unreachable}
+              </p>
             )}
-          </div>
 
-          {pathUnreachable && (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
-              {dictionary.calculator.pathUnreachable}
+            <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+              {c.inflationDisclaimer}
             </p>
-          )}
 
-          {monthlyExpenses && !validation.isValid && (
-            <ul className="space-y-1 text-sm text-red-600 dark:text-red-400">
-              {validation.errors.map((errorKey) => (
-                <li key={errorKey}>{dictionary.validation[errorKey]}</li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+            {!validation.isValid && (
+              <ul className="text-sm text-red-600">
+                {validation.errors.map((key) => (
+                  <li key={key}>{dictionary.validation[key]}</li>
+                ))}
+              </ul>
+            )}
+
+            <Button
+              type="button"
+              className="w-full"
+              disabled={!result || saveState === "saving"}
+              onClick={() => void savePlan()}
+            >
+              {saveState === "saving"
+                ? c.saving
+                : saveState === "saved"
+                  ? c.saved
+                  : c.save}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 5 && result && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{c.projectionTitle}</CardTitle>
+            <CardDescription>{c.projectionHint}</CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-sm">
+              <thead>
+                <tr className="border-b text-start text-xs text-zinc-500">
+                  <th className="py-2 pe-2">{c.colYear}</th>
+                  <th className="py-2 pe-2">{c.colStart}</th>
+                  <th className="py-2 pe-2">{c.colContribution}</th>
+                  <th className="py-2 pe-2">{c.colReturn}</th>
+                  <th className="py-2">{c.colEnd}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.projection.map((row) => (
+                  <tr
+                    key={row.year}
+                    className={cn(
+                      "border-b border-zinc-100 dark:border-zinc-800",
+                      row.endingCapital >= result.targetCapital &&
+                        "bg-emerald-50 font-medium dark:bg-emerald-950/30",
+                    )}
+                  >
+                    <td className="py-2 pe-2 tabular-nums">{row.year}</td>
+                    <td className="py-2 pe-2 tabular-nums">
+                      {formatToman(row.startingCapital, locale)}
+                    </td>
+                    <td className="py-2 pe-2 tabular-nums">
+                      {formatToman(row.annualContribution, locale)}
+                    </td>
+                    <td className="py-2 pe-2 tabular-nums">
+                      {formatToman(row.returnEarned, locale)}
+                    </td>
+                    <td className="py-2 tabular-nums">
+                      {formatToman(row.endingCapital, locale)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 5 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{c.historyTitle}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {history.length === 0 ? (
+              <p className="text-sm text-zinc-500">{c.noHistory}</p>
+            ) : (
+              <ul className="space-y-2">
+                {history.map((plan) => (
+                  <li
+                    key={plan.id}
+                    className="flex justify-between rounded-lg border p-3 text-sm"
+                  >
+                    <span className="tabular-nums">
+                      {formatToman(plan.monthlyExpense, locale)} {c.toman}/mo
+                    </span>
+                    <span className="font-medium tabular-nums">
+                      {formatYears(plan.yearsToFreedom, locale)} {c.yearsUnit}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex gap-3">
+        {step > 1 && (
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={() => setStep((s) => s - 1)}
+          >
+            {c.back}
+          </Button>
+        )}
+        {step < 5 && (
+          <Button
+            type="button"
+            className="flex-1"
+            disabled={
+              (step === 1 && (!monthlyExpense || Number(monthlyExpense) <= 0)) ||
+              (step === 2 && Number(initialCapital) < 0) ||
+              (step === 3 && realPreview <= 0)
+            }
+            onClick={() => setStep((s) => s + 1)}
+          >
+            {c.next}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

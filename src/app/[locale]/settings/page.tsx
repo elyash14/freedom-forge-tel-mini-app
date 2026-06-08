@@ -1,13 +1,13 @@
-import { FreedomCalculator } from "@/components/freedom-calculator/FreedomCalculator";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 import { type Locale, locales } from "@/i18n/config";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { notFound } from "next/navigation";
 
-type HomePageProps = {
+type SettingsRouteProps = {
   params: Promise<{ locale: string }>;
 };
 
-export default async function HomePage({ params }: HomePageProps) {
+export default async function SettingsRoute({ params }: SettingsRouteProps) {
   const { locale } = await params;
 
   if (!locales.includes(locale as Locale)) {
@@ -17,5 +17,5 @@ export default async function HomePage({ params }: HomePageProps) {
   const typedLocale = locale as Locale;
   const dictionary = await getDictionary(typedLocale);
 
-  return <FreedomCalculator locale={typedLocale} dictionary={dictionary} />;
+  return <SettingsPage locale={typedLocale} dictionary={dictionary} />;
 }
