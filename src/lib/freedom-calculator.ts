@@ -1,7 +1,13 @@
-export type AssetClassInput = {
-  key: string;
-  historicalNominalReturn: number;
-};
+import {
+  calculateExpectedInflation,
+  calculateHistoricalNominalReturn,
+  calculateHistoricalRealReturn,
+  capFutureInflation,
+  realToNominalReturn,
+  type HistoricalReturnRow,
+} from "@/lib/historical-returns";
+
+export type ProjectionScenario = "real" | "fixed" | "accelerating";
 
 export type PortfolioAllocation = Record<string, number>;
 
@@ -9,13 +15,14 @@ export type CalculatorInputs = {
   monthlyExpense: number;
   initialCapital: number;
   allocation: PortfolioAllocation;
-  assetClasses: AssetClassInput[];
-  inflationRate: number;
+  historicalData: HistoricalReturnRow[];
   monthlyContribution: number;
 };
 
 export type ProjectionRow = {
   year: number;
+  inflationRate: number;
+  monthlyContributionStart: number;
   startingCapital: number;
   annualContribution: number;
   returnEarned: number;
@@ -37,27 +44,10 @@ export type CalculatorValidationError =
   | "expenseRequired"
   | "capitalInvalid"
   | "allocationInvalid"
-  | "inflationInvalid"
   | "contributionInvalid"
   | "realReturnNonPositive"
+  | "historicalDataMissing"
   | "unreachable";
-
-export function calculateRealReturn(
-  nominalReturn: number,
-  inflationRate: number,
-): number {
-  return (1 + nominalReturn) / (1 + inflationRate) - 1;
-}
-
-export function calculateWeightedNominalReturn(
-  allocation: PortfolioAllocation,
-  assetClasses: AssetClassInput[],
-): number {
-  return assetClasses.reduce(
-    (sum, asset) => sum + (allocation[asset.key] ?? 0) * asset.historicalNominalReturn,
-    0,
-  );
-}
 
 export function calculateTargetCapital(
   monthlyExpense: number,
@@ -100,6 +90,7 @@ export function buildYearlyProjection(
   monthlyContribution: number,
   realReturnRate: number,
   years: number,
+  avgInflation = 0,
 ): ProjectionRow[] {
   const rows: ProjectionRow[] = [];
   let capital = initialCapital;
@@ -112,6 +103,8 @@ export function buildYearlyProjection(
 
     rows.push({
       year,
+      inflationRate: avgInflation,
+      monthlyContributionStart: monthlyContribution,
       startingCapital,
       annualContribution,
       returnEarned,
@@ -122,6 +115,127 @@ export function buildYearlyProjection(
   }
 
   return rows;
+}
+
+export function buildNominalYearlyProjection(
+  initialCapital: number,
+  monthlyContribution: number,
+  realReturnRate: number,
+  avgInflation: number,
+  years: number,
+): ProjectionRow[] {
+  const cappedInflation = capFutureInflation(avgInflation);
+  const rows: ProjectionRow[] = [];
+  let capital = initialCapital;
+  let monthlyContributionStart =
+    monthlyContribution * (1 + cappedInflation);
+
+  for (let year = 1; year <= years; year++) {
+    const currentYearInflation = cappedInflation;
+    const nominalReturnRate = realToNominalReturn(
+      realReturnRate,
+      currentYearInflation,
+    );
+    const annualContribution = monthlyContributionStart * 12;
+    const startingCapital = capital;
+    const returnEarned =
+      (startingCapital + annualContribution) * nominalReturnRate;
+    const endingCapital = startingCapital + annualContribution + returnEarned;
+
+    rows.push({
+      year,
+      inflationRate: currentYearInflation,
+      monthlyContributionStart,
+      startingCapital,
+      annualContribution,
+      returnEarned,
+      endingCapital,
+    });
+
+    capital = endingCapital;
+    monthlyContributionStart *= 1 + currentYearInflation;
+  }
+
+  return rows;
+}
+
+export function buildAcceleratingInflationProjection(
+  initialCapital: number,
+  monthlyContribution: number,
+  realReturnRate: number,
+  baseInflation: number,
+  inflationDelta: number,
+  years: number,
+): ProjectionRow[] {
+  const rows: ProjectionRow[] = [];
+  let capital = initialCapital;
+  let currentYearInflation = capFutureInflation(baseInflation);
+  let monthlyContributionStart =
+    monthlyContribution * (1 + currentYearInflation);
+
+  for (let year = 1; year <= years; year++) {
+    if (year > 1) {
+      currentYearInflation = capFutureInflation(
+        currentYearInflation + inflationDelta,
+      );
+      monthlyContributionStart *= 1 + currentYearInflation;
+    }
+
+    const nominalReturnRate = realToNominalReturn(
+      realReturnRate,
+      currentYearInflation,
+    );
+    const annualContribution = monthlyContributionStart * 12;
+    const startingCapital = capital;
+    const returnEarned =
+      (startingCapital + annualContribution) * nominalReturnRate;
+    const endingCapital = startingCapital + annualContribution + returnEarned;
+
+    rows.push({
+      year,
+      inflationRate: currentYearInflation,
+      monthlyContributionStart,
+      startingCapital,
+      annualContribution,
+      returnEarned,
+      endingCapital,
+    });
+
+    capital = endingCapital;
+  }
+
+  return rows;
+}
+
+export function nominalTargetCapitalAtYear(
+  realTargetCapital: number,
+  avgInflation: number,
+  year: number,
+): number {
+  const cappedInflation = capFutureInflation(avgInflation);
+  return realTargetCapital * Math.pow(1 + cappedInflation, year);
+}
+
+export function nominalTargetCapitalAccelerating(
+  realTargetCapital: number,
+  baseInflation: number,
+  inflationDelta: number,
+  year: number,
+): number {
+  let factor = 1;
+  let currentYearInflation = capFutureInflation(baseInflation);
+
+  for (let y = 1; y <= year; y++) {
+    if (y > 1) {
+      currentYearInflation = capFutureInflation(
+        currentYearInflation + inflationDelta,
+      );
+    }
+
+    factor *= 1 + currentYearInflation;
+  }
+
+  return realTargetCapital * factor;
 }
 
 export function normalizeAllocation(
@@ -154,31 +268,29 @@ export function validateCalculatorInputs(inputs: CalculatorInputs): {
     errors.push("capitalInvalid");
   }
 
-  if (inputs.inflationRate <= 0 || inputs.inflationRate > 1) {
-    errors.push("inflationInvalid");
-  }
-
   if (inputs.monthlyContribution < 0) {
     errors.push("contributionInvalid");
   }
 
-  const keys = inputs.assetClasses.map((a) => a.key);
-  const totalWeight = keys.reduce(
-    (sum, key) => sum + (inputs.allocation[key] ?? 0),
+  if (inputs.historicalData.length === 0) {
+    errors.push("historicalDataMissing");
+  }
+
+  const totalWeight = Object.values(inputs.allocation).reduce(
+    (sum, weight) => sum + weight,
     0,
   );
 
-  if (keys.length === 0 || totalWeight <= 0) {
+  if (totalWeight <= 0) {
     errors.push("allocationInvalid");
   }
 
-  const nominal = calculateWeightedNominalReturn(
-    normalizeAllocation(inputs.allocation, keys),
-    inputs.assetClasses,
+  const realReturn = calculateHistoricalRealReturn(
+    inputs.allocation,
+    inputs.historicalData,
   );
-  const realReturn = calculateRealReturn(nominal, inputs.inflationRate);
 
-  if (realReturn <= 0) {
+  if (inputs.historicalData.length > 0 && realReturn <= 0) {
     errors.push("realReturnNonPositive");
   }
 
@@ -191,15 +303,13 @@ export function calculateFreedom(inputs: CalculatorInputs): CalculatorResult | n
     return null;
   }
 
-  const keys = inputs.assetClasses.map((a) => a.key);
-  const normalized = normalizeAllocation(inputs.allocation, keys);
-  const nominalReturnRate = calculateWeightedNominalReturn(
-    normalized,
-    inputs.assetClasses,
+  const realReturnRate = calculateHistoricalRealReturn(
+    inputs.allocation,
+    inputs.historicalData,
   );
-  const realReturnRate = calculateRealReturn(
-    nominalReturnRate,
-    inputs.inflationRate,
+  const nominalReturnRate = calculateHistoricalNominalReturn(
+    inputs.allocation,
+    inputs.historicalData,
   );
   const targetCapital = calculateTargetCapital(
     inputs.monthlyExpense,
@@ -222,6 +332,7 @@ export function calculateFreedom(inputs: CalculatorInputs): CalculatorResult | n
   }
 
   const projectionYears = Math.max(1, Math.ceil(yearsToFreedom));
+  const avgInflation = calculateExpectedInflation(inputs.historicalData);
 
   return {
     monthlyExpense: inputs.monthlyExpense,
@@ -236,6 +347,7 @@ export function calculateFreedom(inputs: CalculatorInputs): CalculatorResult | n
       inputs.monthlyContribution,
       realReturnRate,
       projectionYears,
+      avgInflation,
     ),
   };
 }

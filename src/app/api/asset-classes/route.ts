@@ -6,7 +6,6 @@ type AssetClassUpdate = {
   id: string;
   labelFa?: string;
   labelEn?: string;
-  historicalNominalReturn?: number;
 };
 
 export async function GET() {
@@ -28,25 +27,6 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  for (const asset of body.assetClasses) {
-    if (!asset.id) {
-      return NextResponse.json(
-        { error: "Asset class id is required." },
-        { status: 400 },
-      );
-    }
-
-    if (
-      asset.historicalNominalReturn != null &&
-      (asset.historicalNominalReturn <= 0 || asset.historicalNominalReturn > 2)
-    ) {
-      return NextResponse.json(
-        { error: "Invalid nominal return." },
-        { status: 400 },
-      );
-    }
-  }
-
   await prisma.$transaction(
     body.assetClasses.map((asset) =>
       prisma.assetClass.update({
@@ -54,9 +34,6 @@ export async function PATCH(request: NextRequest) {
         data: {
           ...(asset.labelFa != null && { labelFa: asset.labelFa }),
           ...(asset.labelEn != null && { labelEn: asset.labelEn }),
-          ...(asset.historicalNominalReturn != null && {
-            historicalNominalReturn: asset.historicalNominalReturn,
-          }),
         },
       }),
     ),

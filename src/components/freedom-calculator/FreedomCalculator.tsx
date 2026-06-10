@@ -18,14 +18,29 @@ import { Slider } from "@/components/ui/slider";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import {
+  buildAcceleratingInflationProjection,
+  buildNominalYearlyProjection,
   calculateFreedom,
-  calculateRealReturn,
-  calculateWeightedNominalReturn,
+  nominalTargetCapitalAccelerating,
+  nominalTargetCapitalAtYear,
   normalizeAllocation,
   validateCalculatorInputs,
   type PortfolioAllocation,
+  type ProjectionScenario,
 } from "@/lib/freedom-calculator";
-import { formatPercent, formatToman, formatYears } from "@/lib/freedom-format";
+import {
+  formatPercent,
+  formatToman,
+  formatTomanCompact,
+  formatYears,
+} from "@/lib/freedom-format";
+import {
+  calculateExpectedInflation,
+  calculateHistoricalNominalReturn,
+  calculateHistoricalRealReturn,
+  calculateInflationDelta,
+  type HistoricalReturnRow,
+} from "@/lib/historical-returns";
 import { cn } from "@/lib/utils";
 
 type AssetClassDto = {
@@ -33,7 +48,6 @@ type AssetClassDto = {
   key: string;
   labelFa: string;
   labelEn: string;
-  historicalNominalReturn: number;
 };
 
 type SavedPlan = {
@@ -60,7 +74,9 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   const [initialCapital, setInitialCapital] = useState("0");
   const [monthlyContribution, setMonthlyContribution] = useState(5_000_000);
   const [allocation, setAllocation] = useState<PortfolioAllocation>({});
-  const [inflationRate, setInflationRate] = useState(0.45);
+  const [historicalData, setHistoricalData] = useState<HistoricalReturnRow[]>(
+    [],
+  );
   const [assetClasses, setAssetClasses] = useState<AssetClassDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -68,6 +84,8 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     "idle",
   );
   const [history, setHistory] = useState<SavedPlan[]>([]);
+  const [projectionScenario, setProjectionScenario] =
+    useState<ProjectionScenario>("real");
 
   const initAllocation = useCallback((assets: AssetClassDto[]) => {
     const even = 100 / assets.length;
@@ -77,22 +95,20 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   useEffect(() => {
     async function load() {
       try {
-        const [configRes, assetsRes, plansRes] = await Promise.all([
-          fetch("/api/config"),
+        const [historicalRes, assetsRes, plansRes] = await Promise.all([
+          fetch("/api/historical-returns"),
           fetch("/api/asset-classes"),
           fetch("/api/plans"),
         ]);
 
-        if (!configRes.ok || !assetsRes.ok) {
+        if (!historicalRes.ok || !assetsRes.ok) {
           throw new Error("load failed");
         }
 
-        const config = (await configRes.json()) as {
-          defaultInflationRate: number;
-        };
+        const historical = (await historicalRes.json()) as HistoricalReturnRow[];
         const assets = (await assetsRes.json()) as AssetClassDto[];
 
-        setInflationRate(config.defaultInflationRate);
+        setHistoricalData(historical);
         setAssetClasses(assets);
         initAllocation(assets);
 
@@ -110,27 +126,18 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     void load();
   }, [c.loadError, initAllocation]);
 
-  const assetInputs = useMemo(
-    () =>
-      assetClasses.map((a) => ({
-        key: a.key,
-        historicalNominalReturn: a.historicalNominalReturn,
-      })),
+  const assetKeys = useMemo(
+    () => assetClasses.map((a) => a.key),
     [assetClasses],
   );
 
   const normalizedAllocation = useMemo(
-    () =>
-      normalizeAllocation(
-        allocation,
-        assetClasses.map((a) => a.key),
-      ),
-    [allocation, assetClasses],
+    () => normalizeAllocation(allocation, assetKeys),
+    [allocation, assetKeys],
   );
 
   const allocationTotal = useMemo(
-    () =>
-      assetClasses.reduce((sum, a) => sum + (allocation[a.key] ?? 0), 0),
+    () => assetClasses.reduce((sum, a) => sum + (allocation[a.key] ?? 0), 0),
     [allocation, assetClasses],
   );
 
@@ -139,16 +146,14 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
       monthlyExpense: Number(monthlyExpense) || 0,
       initialCapital: Number(initialCapital) || 0,
       allocation: normalizedAllocation,
-      assetClasses: assetInputs,
-      inflationRate,
+      historicalData,
       monthlyContribution,
     }),
     [
       monthlyExpense,
       initialCapital,
       normalizedAllocation,
-      assetInputs,
-      inflationRate,
+      historicalData,
       monthlyContribution,
     ],
   );
@@ -157,19 +162,139 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   const result = useMemo(() => calculateFreedom(parsed), [parsed]);
 
   const nominalPreview = useMemo(
-    () => calculateWeightedNominalReturn(normalizedAllocation, assetInputs),
-    [normalizedAllocation, assetInputs],
+    () =>
+      calculateHistoricalNominalReturn(normalizedAllocation, historicalData),
+    [normalizedAllocation, historicalData],
   );
 
   const realPreview = useMemo(
-    () => calculateRealReturn(nominalPreview, inflationRate),
-    [nominalPreview, inflationRate],
+    () => calculateHistoricalRealReturn(normalizedAllocation, historicalData),
+    [normalizedAllocation, historicalData],
   );
 
   const pmtMax = useMemo(() => {
     const expense = Number(monthlyExpense) || 50_000_000;
     return Math.max(expense, 10_000_000);
   }, [monthlyExpense]);
+
+  const expectedInflation = useMemo(
+    () => calculateExpectedInflation(historicalData),
+    [historicalData],
+  );
+
+  const inflationDelta = useMemo(
+    () => calculateInflationDelta(historicalData),
+    [historicalData],
+  );
+
+  const isNominalScenario =
+    projectionScenario === "fixed" || projectionScenario === "accelerating";
+
+  const projectionRows = useMemo(() => {
+    if (!result) {
+      return [];
+    }
+
+    const years = result.projection.length;
+
+    if (projectionScenario === "fixed") {
+      return buildNominalYearlyProjection(
+        result.initialCapital,
+        result.monthlyContribution,
+        result.realReturnRate,
+        expectedInflation,
+        years,
+      );
+    }
+
+    if (projectionScenario === "accelerating") {
+      return buildAcceleratingInflationProjection(
+        result.initialCapital,
+        result.monthlyContribution,
+        result.realReturnRate,
+        expectedInflation,
+        inflationDelta,
+        years,
+      );
+    }
+
+    return result.projection;
+  }, [
+    result,
+    projectionScenario,
+    expectedInflation,
+    inflationDelta,
+  ]);
+
+  const projectionScenarios = useMemo(
+    () =>
+      [
+        { id: "real" as const, label: c.projectionRealTerms },
+        { id: "fixed" as const, label: c.projectionFixedInflation },
+        {
+          id: "accelerating" as const,
+          label: c.projectionAcceleratingInflation,
+        },
+      ] satisfies { id: ProjectionScenario; label: string }[],
+    [
+      c.projectionRealTerms,
+      c.projectionFixedInflation,
+      c.projectionAcceleratingInflation,
+    ],
+  );
+
+  function formatProjectionAmount(value: number): string {
+    const formatter = isNominalScenario ? formatTomanCompact : formatToman;
+    return formatter(value, locale);
+  }
+
+  function projectionHint(): string {
+    if (projectionScenario === "fixed") {
+      return c.projectionHintNominal.replace(
+        "{rate}",
+        formatPercent(expectedInflation, locale),
+      );
+    }
+
+    if (projectionScenario === "accelerating") {
+      return c.projectionHintAccelerating
+        .replace("{rate}", formatPercent(expectedInflation, locale))
+        .replace("{delta}", formatPercent(inflationDelta, locale));
+    }
+
+    return c.projectionHint;
+  }
+
+  function isFreedomYear(endingCapital: number, year: number): boolean {
+    if (!result) {
+      return false;
+    }
+
+    if (projectionScenario === "fixed") {
+      return (
+        endingCapital >=
+        nominalTargetCapitalAtYear(
+          result.targetCapital,
+          expectedInflation,
+          year,
+        )
+      );
+    }
+
+    if (projectionScenario === "accelerating") {
+      return (
+        endingCapital >=
+        nominalTargetCapitalAccelerating(
+          result.targetCapital,
+          expectedInflation,
+          inflationDelta,
+          year,
+        )
+      );
+    }
+
+    return endingCapital >= result.targetCapital;
+  }
 
   function updateAllocation(key: string, value: number) {
     setAllocation((prev) => ({ ...prev, [key]: value }));
@@ -187,7 +312,6 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
           monthlyExpense: parsed.monthlyExpense,
           initialCapital: parsed.initialCapital,
           portfolioAllocation: normalizedAllocation,
-          inflationRate,
           monthlyContribution,
         }),
       });
@@ -315,12 +439,18 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
             <p className="text-xs text-zinc-500">
               {c.allocationTotal}: {Math.round(allocationTotal)}%
             </p>
+            <p className="text-xs text-zinc-500">
+              {c.historicalDataYears.replace(
+                "{years}",
+                String(historicalData.length),
+              )}
+            </p>
             <div className="rounded-lg bg-zinc-100 p-4 text-sm dark:bg-zinc-900">
               <p>
                 {c.nominalReturn}: {formatPercent(nominalPreview, locale)}
               </p>
-              <p className="mt-1">
-                {c.realReturn}: {formatPercent(realPreview, locale)}
+              <p className="mt-1 font-semibold">
+                {c.realReturnGeometric}: {formatPercent(realPreview, locale)}
               </p>
               {realPreview <= 0 && (
                 <p className="mt-2 text-amber-700 dark:text-amber-300">
@@ -343,7 +473,8 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
               {formatToman(result.targetCapital, locale)} {c.toman}
             </p>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              {c.realReturn}: {formatPercent(result.realReturnRate, locale)}
+              {c.realReturnGeometric}:{" "}
+              {formatPercent(result.realReturnRate, locale)}
             </p>
           </CardContent>
         </Card>
@@ -381,7 +512,9 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
                   </p>
                 ) : (
                   <p className="text-3xl font-bold tabular-nums">
-                    <span dir="ltr">{formatYears(result.yearsToFreedom, locale)}</span>{" "}
+                    <span dir="ltr">
+                      {formatYears(result.yearsToFreedom, locale)}
+                    </span>{" "}
                     {c.yearsUnit}
                   </p>
                 )}
@@ -390,10 +523,9 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
               <p className="text-sm text-red-600">
                 {validation.errors.includes("realReturnNonPositive")
                   ? c.realReturnNegative
-                  : validation.errors.includes("unreachable") ||
-                      (!validation.isValid && monthlyContribution > 0)
-                    ? c.unreachable
-                    : dictionary.validation.unreachable}
+                  : validation.errors.includes("historicalDataMissing")
+                    ? c.historicalDataMissing
+                    : c.unreachable}
               </p>
             )}
 
@@ -429,46 +561,83 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
         <Card>
           <CardHeader>
             <CardTitle>{c.projectionTitle}</CardTitle>
-            <CardDescription>{c.projectionHint}</CardDescription>
+            <CardDescription>{projectionHint()}</CardDescription>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full min-w-[480px] text-sm">
-              <thead>
-                <tr className="border-b text-start text-xs text-zinc-500">
-                  <th className="py-2 pe-2">{c.colYear}</th>
-                  <th className="py-2 pe-2">{c.colStart}</th>
-                  <th className="py-2 pe-2">{c.colContribution}</th>
-                  <th className="py-2 pe-2">{c.colReturn}</th>
-                  <th className="py-2">{c.colEnd}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.projection.map((row) => (
-                  <tr
-                    key={row.year}
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-xs text-zinc-500">{c.projectionScenario}</Label>
+              <div
+                className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1 sm:flex-row dark:border-zinc-800 dark:bg-zinc-900/50"
+                role="group"
+                aria-label={c.projectionScenario}
+              >
+                {projectionScenarios.map((scenario) => (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => setProjectionScenario(scenario.id)}
                     className={cn(
-                      "border-b border-zinc-100 dark:border-zinc-800",
-                      row.endingCapital >= result.targetCapital &&
-                        "bg-emerald-50 font-medium dark:bg-emerald-950/30",
+                      "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors sm:text-sm",
+                      projectionScenario === scenario.id
+                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300",
                     )}
                   >
-                    <td className="py-2 pe-2 tabular-nums">{row.year}</td>
-                    <td className="py-2 pe-2 tabular-nums">
-                      {formatToman(row.startingCapital, locale)}
-                    </td>
-                    <td className="py-2 pe-2 tabular-nums">
-                      {formatToman(row.annualContribution, locale)}
-                    </td>
-                    <td className="py-2 pe-2 tabular-nums">
-                      {formatToman(row.returnEarned, locale)}
-                    </td>
-                    <td className="py-2 tabular-nums">
-                      {formatToman(row.endingCapital, locale)}
-                    </td>
-                  </tr>
+                    {scenario.label}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="border-b text-start text-xs text-zinc-500">
+                    <th className="py-2 pe-2">{c.colYear}</th>
+                    <th className="py-2 pe-2">{c.colExpectedInflation}</th>
+                    <th className="py-2 pe-2">{c.colMonthlyStart}</th>
+                    <th className="py-2 pe-2">{c.colStart}</th>
+                    <th className="py-2 pe-2">{c.colContribution}</th>
+                    <th className="py-2 pe-2">
+                      {isNominalScenario ? c.colReturnNominal : c.colReturn}
+                    </th>
+                    <th className="py-2">{c.colEnd}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectionRows.map((row) => (
+                    <tr
+                      key={row.year}
+                      className={cn(
+                        "border-b border-zinc-100 dark:border-zinc-800",
+                        isFreedomYear(row.endingCapital, row.year) &&
+                          "bg-emerald-50 font-medium dark:bg-emerald-950/30",
+                      )}
+                    >
+                      <td className="py-2 pe-2 tabular-nums">{row.year}</td>
+                      <td className="py-2 pe-2 tabular-nums">
+                        {formatPercent(row.inflationRate, locale)}
+                      </td>
+                      <td className="py-2 pe-2 tabular-nums">
+                        {formatProjectionAmount(row.monthlyContributionStart)}
+                      </td>
+                      <td className="py-2 pe-2 tabular-nums">
+                        {formatProjectionAmount(row.startingCapital)}
+                      </td>
+                      <td className="py-2 pe-2 tabular-nums">
+                        {formatProjectionAmount(row.annualContribution)}
+                      </td>
+                      <td className="py-2 pe-2 tabular-nums">
+                        {formatProjectionAmount(row.returnEarned)}
+                      </td>
+                      <td className="py-2 tabular-nums">
+                        {formatProjectionAmount(row.endingCapital)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -520,7 +689,8 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
             disabled={
               (step === 1 && (!monthlyExpense || Number(monthlyExpense) <= 0)) ||
               (step === 2 && Number(initialCapital) < 0) ||
-              (step === 3 && realPreview <= 0)
+              (step === 3 &&
+                (realPreview <= 0 || historicalData.length === 0))
             }
             onClick={() => setStep((s) => s + 1)}
           >

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 import { calculateFreedom, type PortfolioAllocation } from "@/lib/freedom-calculator";
+import type { HistoricalReturnRow } from "@/lib/historical-returns";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "freedom_session";
@@ -11,7 +12,6 @@ type SavePlanBody = {
   monthlyExpense: number;
   initialCapital: number;
   portfolioAllocation: PortfolioAllocation;
-  inflationRate: number;
   monthlyContribution: number;
 };
 
@@ -46,20 +46,25 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as SavePlanBody;
   const sessionId = await getOrCreateSessionId(request);
 
-  const assetClasses = await prisma.assetClass.findMany({
-    where: { isActive: true },
-    orderBy: { sortOrder: "asc" },
+  const historicalRows = await prisma.historicalReturn.findMany({
+    orderBy: { year: "asc" },
   });
+
+  const historicalData: HistoricalReturnRow[] = historicalRows.map((row) => ({
+    year: row.year,
+    inflation: row.inflation,
+    stockMarket: row.stockMarket,
+    gold: row.gold,
+    bankDeposit: row.bankDeposit,
+    investmentFund: row.investmentFund,
+    crypto: row.crypto,
+  }));
 
   const result = calculateFreedom({
     monthlyExpense: body.monthlyExpense,
     initialCapital: body.initialCapital,
     allocation: body.portfolioAllocation,
-    assetClasses: assetClasses.map((a) => ({
-      key: a.key,
-      historicalNominalReturn: a.historicalNominalReturn,
-    })),
-    inflationRate: body.inflationRate,
+    historicalData,
     monthlyContribution: body.monthlyContribution,
   });
 
@@ -77,7 +82,6 @@ export async function POST(request: NextRequest) {
       monthlyExpense: result.monthlyExpense,
       initialCapital: result.initialCapital,
       portfolioAllocation: body.portfolioAllocation,
-      inflationRate: body.inflationRate,
       nominalReturnRate: result.nominalReturnRate,
       realReturnRate: result.realReturnRate,
       monthlyContribution: result.monthlyContribution,

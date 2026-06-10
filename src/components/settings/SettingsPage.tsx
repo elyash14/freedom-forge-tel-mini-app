@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import { formatPercent } from "@/lib/freedom-format";
@@ -24,7 +23,16 @@ type AssetClassDto = {
   key: string;
   labelFa: string;
   labelEn: string;
-  historicalNominalReturn: number;
+};
+
+type HistoricalReturnDto = {
+  year: number;
+  inflation: number;
+  stockMarket: number;
+  gold: number;
+  bankDeposit: number;
+  investmentFund: number;
+  crypto: number | null;
 };
 
 type SettingsPageProps = {
@@ -34,8 +42,10 @@ type SettingsPageProps = {
 
 export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
   const s = dictionary.settings;
-  const [inflationRate, setInflationRate] = useState(0.45);
   const [assetClasses, setAssetClasses] = useState<AssetClassDto[]>([]);
+  const [historicalReturns, setHistoricalReturns] = useState<
+    HistoricalReturnDto[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
@@ -45,22 +55,19 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
   const loadSettings = useCallback(async () => {
     try {
-      const [configRes, assetsRes] = await Promise.all([
-        fetch("/api/config"),
+      const [assetsRes, historicalRes] = await Promise.all([
         fetch("/api/asset-classes"),
+        fetch("/api/historical-returns"),
       ]);
 
-      if (!configRes.ok || !assetsRes.ok) {
+      if (!assetsRes.ok || !historicalRes.ok) {
         throw new Error("load failed");
       }
 
-      const config = (await configRes.json()) as {
-        defaultInflationRate: number;
-      };
-      const assets = (await assetsRes.json()) as AssetClassDto[];
-
-      setInflationRate(config.defaultInflationRate);
-      setAssetClasses(assets);
+      setAssetClasses((await assetsRes.json()) as AssetClassDto[]);
+      setHistoricalReturns(
+        (await historicalRes.json()) as HistoricalReturnDto[],
+      );
       setLoadError(null);
     } catch {
       setLoadError(s.loadError);
@@ -75,20 +82,12 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
   function updateAsset(
     id: string,
-    field: "labelFa" | "labelEn" | "historicalNominalReturn",
+    field: "labelFa" | "labelEn",
     value: string,
   ) {
     setAssetClasses((items) =>
       items.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              [field]:
-                field === "historicalNominalReturn"
-                  ? Number(value) || 0
-                  : value,
-            }
-          : item,
+        item.id === id ? { ...item, [field]: value } : item,
       ),
     );
   }
@@ -98,20 +97,13 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     setSaveError(null);
 
     try {
-      const [configRes, assetsRes] = await Promise.all([
-        fetch("/api/config", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defaultInflationRate: inflationRate }),
-        }),
-        fetch("/api/asset-classes", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ assetClasses }),
-        }),
-      ]);
+      const assetsRes = await fetch("/api/asset-classes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetClasses }),
+      });
 
-      if (!configRes.ok || !assetsRes.ok) {
+      if (!assetsRes.ok) {
         throw new Error("save failed");
       }
 
@@ -161,29 +153,6 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>{s.inflationSection}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between">
-            <Label>{s.inflationRate}</Label>
-            <span className="text-sm font-medium">
-              {formatPercent(inflationRate, locale)}
-            </span>
-          </div>
-          <Slider
-            min={0.05}
-            max={1}
-            step={0.01}
-            value={[inflationRate]}
-            onValueChange={(v) => setInflationRate(v[0] ?? 0.45)}
-            disabled={isLoading}
-          />
-          <p className="text-xs text-zinc-500">{s.inflationHint}</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>{s.assetsSection}</CardTitle>
           <CardDescription>{s.assetsHint}</CardDescription>
         </CardHeader>
@@ -218,26 +187,58 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                   />
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">{s.nominalReturn}</Label>
-                <Input
-                  inputMode="decimal"
-                  value={asset.historicalNominalReturn}
-                  onChange={(e) =>
-                    updateAsset(
-                      asset.id,
-                      "historicalNominalReturn",
-                      e.target.value,
-                    )
-                  }
-                  disabled={isLoading}
-                />
-                <p className="text-xs text-zinc-500">
-                  {formatPercent(asset.historicalNominalReturn, locale)} — decimal e.g. 0.35 = 35%
-                </p>
-              </div>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{s.historicalSection}</CardTitle>
+          <CardDescription>{s.historicalHint}</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-xs">
+            <thead>
+              <tr className="border-b text-start text-zinc-500">
+                <th className="py-2 pe-2">{s.colYear}</th>
+                <th className="py-2 pe-2">{s.colInflation}</th>
+                <th className="py-2 pe-2">{s.colStocks}</th>
+                <th className="py-2 pe-2">{s.colGold}</th>
+                <th className="py-2 pe-2">{s.colBank}</th>
+                <th className="py-2 pe-2">{s.colFund}</th>
+                <th className="py-2">{s.colCrypto}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historicalReturns.map((row) => (
+                <tr key={row.year} className="border-b border-zinc-100 dark:border-zinc-800">
+                  <td className="py-2 pe-2 tabular-nums">{row.year}</td>
+                  <td className="py-2 pe-2 tabular-nums">
+                    {formatPercent(row.inflation, locale)}
+                  </td>
+                  <td className="py-2 pe-2 tabular-nums">
+                    {formatPercent(row.stockMarket, locale)}
+                  </td>
+                  <td className="py-2 pe-2 tabular-nums">
+                    {formatPercent(row.gold, locale)}
+                  </td>
+                  <td className="py-2 pe-2 tabular-nums">
+                    {formatPercent(row.bankDeposit, locale)}
+                  </td>
+                  <td className="py-2 pe-2 tabular-nums">
+                    {formatPercent(row.investmentFund, locale)}
+                  </td>
+                  <td className="py-2 tabular-nums">
+                    {row.crypto == null
+                      ? "—"
+                      : formatPercent(row.crypto, locale)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-3 text-xs text-zinc-500">{s.historicalReadOnly}</p>
         </CardContent>
       </Card>
 

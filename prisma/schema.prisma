@@ -11,21 +11,31 @@ datasource db {
 }
 
 model AppConfig {
-  id                   String   @id @default("default")
-  defaultInflationRate Float    @default(0.45)
-  updatedAt            DateTime @updatedAt
+  id        String   @id @default("default")
+  updatedAt DateTime @updatedAt
+}
+
+model HistoricalReturn {
+  year           Int    @id
+  inflation      Float
+  stockMarket    Float  @map("stock_market")
+  gold           Float
+  bankDeposit    Float  @map("bank_deposit")
+  investmentFund Float  @map("investment_fund")
+  crypto         Float?
+
+  @@map("historical_returns")
 }
 
 model AssetClass {
-  id                      String   @id @default(cuid())
-  key                     String   @unique
-  labelFa                 String
-  labelEn                 String
-  historicalNominalReturn Float
-  sortOrder               Int      @default(0)
-  isActive                Boolean  @default(true)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id        String   @id @default(cuid())
+  key       String   @unique
+  labelFa   String
+  labelEn   String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model User {
@@ -46,7 +56,6 @@ model FreedomPlan {
   monthlyExpense      Float
   initialCapital      Float
   portfolioAllocation Json
-  inflationRate       Float
   nominalReturnRate   Float
   realReturnRate      Float
   monthlyContribution Float
