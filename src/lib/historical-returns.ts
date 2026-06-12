@@ -21,12 +21,16 @@ export const PORTFOLIO_ASSET_KEYS = [
 
 export type PortfolioAssetKey = (typeof PORTFOLIO_ASSET_KEYS)[number];
 
-const WEIGHT_TO_COLUMN: Record<
+export type HistoricalReturnAssetColumn =
+  | "stockMarket"
+  | "gold"
+  | "bankDeposit"
+  | "investmentFund"
+  | "crypto";
+
+export const ASSET_KEY_TO_HISTORICAL_COLUMN: Record<
   PortfolioAssetKey,
-  keyof Pick<
-    HistoricalReturnRow,
-    "stockMarket" | "gold" | "bankDeposit" | "investmentFund" | "crypto"
-  >
+  HistoricalReturnAssetColumn
 > = {
   stocks: "stockMarket",
   gold: "gold",
@@ -34,6 +38,8 @@ const WEIGHT_TO_COLUMN: Record<
   investment_fund: "investmentFund",
   crypto: "crypto",
 };
+
+const WEIGHT_TO_COLUMN = ASSET_KEY_TO_HISTORICAL_COLUMN;
 
 export function getAssetReturnForYear(
   row: HistoricalReturnRow,

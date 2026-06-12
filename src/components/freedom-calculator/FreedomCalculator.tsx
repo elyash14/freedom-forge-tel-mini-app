@@ -29,7 +29,9 @@ import {
   type ProjectionScenario,
 } from "@/lib/freedom-calculator";
 import {
+  formatInteger,
   formatPercent,
+  formatProjectionCalendarYear,
   formatToman,
   formatTomanCompact,
   formatYears,
@@ -442,7 +444,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
             <p className="text-xs text-zinc-500">
               {c.historicalDataYears.replace(
                 "{years}",
-                String(historicalData.length),
+                formatInteger(historicalData.length, locale),
               )}
             </p>
             <div className="rounded-lg bg-zinc-100 p-4 text-sm dark:bg-zinc-900">
@@ -614,7 +616,11 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
                           "bg-emerald-50 font-medium dark:bg-emerald-950/30",
                       )}
                     >
-                      <td className="py-2 pe-2 tabular-nums">{row.year}</td>
+                      <td className="py-2 pe-2 tabular-nums">
+                        <span dir="ltr">
+                          {formatProjectionCalendarYear(row.year, locale)}
+                        </span>
+                      </td>
                       <td className="py-2 pe-2 tabular-nums">
                         {formatPercent(row.inflationRate, locale)}
                       </td>
