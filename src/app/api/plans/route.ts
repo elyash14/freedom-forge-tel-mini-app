@@ -11,6 +11,7 @@ type SavePlanBody = {
   locale: string;
   monthlyExpense: number;
   initialCapital: number;
+  assetCapitals?: Record<string, number>;
   portfolioAllocation: PortfolioAllocation;
   monthlyContribution: number;
 };
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
     bankDeposit: row.bankDeposit,
     investmentFund: row.investmentFund,
     crypto: row.crypto,
+    dollar: row.dollar,
   }));
 
   const result = calculateFreedom({
@@ -81,6 +83,7 @@ export async function POST(request: NextRequest) {
       locale: body.locale,
       monthlyExpense: result.monthlyExpense,
       initialCapital: result.initialCapital,
+      assetCapitals: body.assetCapitals ?? {},
       portfolioAllocation: body.portfolioAllocation,
       nominalReturnRate: result.nominalReturnRate,
       realReturnRate: result.realReturnRate,

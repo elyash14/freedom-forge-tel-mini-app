@@ -9,6 +9,7 @@ export type HistoricalReturnRow = {
   bankDeposit: number;
   investmentFund: number;
   crypto: number | null;
+  dollar: number;
 };
 
 export const PORTFOLIO_ASSET_KEYS = [
@@ -17,6 +18,7 @@ export const PORTFOLIO_ASSET_KEYS = [
   "bank",
   "investment_fund",
   "crypto",
+  "dollar",
 ] as const;
 
 export type PortfolioAssetKey = (typeof PORTFOLIO_ASSET_KEYS)[number];
@@ -26,7 +28,8 @@ export type HistoricalReturnAssetColumn =
   | "gold"
   | "bankDeposit"
   | "investmentFund"
-  | "crypto";
+  | "crypto"
+  | "dollar";
 
 export const ASSET_KEY_TO_HISTORICAL_COLUMN: Record<
   PortfolioAssetKey,
@@ -37,6 +40,7 @@ export const ASSET_KEY_TO_HISTORICAL_COLUMN: Record<
   bank: "bankDeposit",
   investment_fund: "investmentFund",
   crypto: "crypto",
+  dollar: "dollar",
 };
 
 const WEIGHT_TO_COLUMN = ASSET_KEY_TO_HISTORICAL_COLUMN;

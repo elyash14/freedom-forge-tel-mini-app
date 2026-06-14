@@ -23,6 +23,7 @@ model HistoricalReturn {
   bankDeposit    Float  @map("bank_deposit")
   investmentFund Float  @map("investment_fund")
   crypto         Float?
+  dollar         Float  @default(0)
 
   @@map("historical_returns")
 }
@@ -55,15 +56,34 @@ model FreedomPlan {
   locale              String   @default("fa")
   monthlyExpense      Float
   initialCapital      Float
+  assetCapitals       Json     @default("{}")
   portfolioAllocation Json
   nominalReturnRate   Float
   realReturnRate      Float
   monthlyContribution Float
   targetCapital       Float
   yearsToFreedom      Float
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  progressRecords     PlanProgress[]
 
   @@index([sessionId])
   @@index([userId])
+}
+
+model PlanProgress {
+  id           String      @id @default(cuid())
+  planId       String
+  plan         FreedomPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  year         Int
+  month        Int
+  contribution Float
+  totalValue   Float
+  assetDetails Json?       @default("{}")
+  date         DateTime    @default(now())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([planId, year, month])
+  @@index([planId])
 }

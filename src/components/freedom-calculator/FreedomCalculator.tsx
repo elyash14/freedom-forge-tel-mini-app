@@ -60,6 +60,8 @@ type SavedPlan = {
   createdAt: string;
 };
 
+type CapitalInputMode = "total" | "perAsset";
+
 type FreedomCalculatorProps = {
   locale: Locale;
   dictionary: Dictionary;
@@ -74,6 +76,11 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   const [step, setStep] = useState(1);
   const [monthlyExpense, setMonthlyExpense] = useState("");
   const [initialCapital, setInitialCapital] = useState("0");
+  const [capitalInputMode, setCapitalInputMode] =
+    useState<CapitalInputMode>("total");
+  const [assetCapitals, setAssetCapitals] = useState<Record<string, string>>(
+    {},
+  );
   const [monthlyContribution, setMonthlyContribution] = useState(5_000_000);
   const [allocation, setAllocation] = useState<PortfolioAllocation>({});
   const [historicalData, setHistoricalData] = useState<HistoricalReturnRow[]>(
@@ -143,17 +150,33 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     [allocation, assetClasses],
   );
 
+  const activeAssets = useMemo(
+    () => assetClasses.filter((asset) => (allocation[asset.key] ?? 0) > 0),
+    [assetClasses, allocation],
+  );
+
+  const effectiveInitialCapital = useMemo(() => {
+    if (capitalInputMode === "total") {
+      return Number(initialCapital.replace(/,/g, "")) || 0;
+    }
+
+    return activeAssets.reduce((sum, asset) => {
+      const value = assetCapitals[asset.key] ?? "";
+      return sum + (Number(value.replace(/,/g, "")) || 0);
+    }, 0);
+  }, [capitalInputMode, initialCapital, assetCapitals, activeAssets]);
+
   const parsed = useMemo(
     () => ({
       monthlyExpense: Number(monthlyExpense) || 0,
-      initialCapital: Number(initialCapital) || 0,
+      initialCapital: effectiveInitialCapital,
       allocation: normalizedAllocation,
       historicalData,
       monthlyContribution,
     }),
     [
       monthlyExpense,
-      initialCapital,
+      effectiveInitialCapital,
       normalizedAllocation,
       historicalData,
       monthlyContribution,
@@ -302,6 +325,40 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     setAllocation((prev) => ({ ...prev, [key]: value }));
   }
 
+  function updateAssetCapital(key: string, value: string) {
+    setAssetCapitals((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function buildAssetCapitalsToSave(): Record<string, number> {
+    const result: Record<string, number> = {};
+
+    if (capitalInputMode === "perAsset") {
+      for (const asset of activeAssets) {
+        const value =
+          Number((assetCapitals[asset.key] ?? "").replace(/,/g, "")) || 0;
+        result[asset.key] = value;
+      }
+      return result;
+    }
+
+    const total = effectiveInitialCapital;
+    let remaining = total;
+
+    activeAssets.forEach((asset, index) => {
+      if (index === activeAssets.length - 1) {
+        result[asset.key] = remaining;
+        return;
+      }
+
+      const weight = normalizedAllocation[asset.key] ?? 0;
+      const portion = Math.round(total * (weight / 100));
+      result[asset.key] = portion;
+      remaining -= portion;
+    });
+
+    return result;
+  }
+
   async function savePlan() {
     if (!result) return;
     setSaveState("saving");
@@ -313,6 +370,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
           locale,
           monthlyExpense: parsed.monthlyExpense,
           initialCapital: parsed.initialCapital,
+          assetCapitals: buildAssetCapitalsToSave(),
           portfolioAllocation: normalizedAllocation,
           monthlyContribution,
         }),
@@ -343,7 +401,13 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
             className="justify-center sm:justify-end"
           />
         </div>
-        <div className="flex justify-center sm:justify-end">
+        <div className="flex justify-center gap-4 sm:justify-end">
+          <Link
+            href={`/${locale}/plans`}
+            className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
+          >
+            {dictionary.nav.plans}
+          </Link>
           <Link
             href={`/${locale}/settings`}
             className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
@@ -397,25 +461,6 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>{c.step2}</CardTitle>
-            <CardDescription>{c.initialCapitalHint}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Label>{c.initialCapital}</Label>
-            <Input
-              inputMode="numeric"
-              placeholder={c.initialCapitalPlaceholder}
-              value={initialCapital}
-              onChange={(e) => setInitialCapital(e.target.value)}
-            />
-            <span className="text-xs text-zinc-500">{c.toman}</span>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 3 && (
-        <Card>
-          <CardHeader>
             <CardTitle>{c.portfolioTitle}</CardTitle>
             <CardDescription>{c.portfolioHint}</CardDescription>
           </CardHeader>
@@ -460,6 +505,95 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
                 </p>
               )}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{c.step3}</CardTitle>
+            <CardDescription>
+              {capitalInputMode === "total"
+                ? c.initialCapitalHint
+                : c.perAssetCapitalHint}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label className="text-xs text-zinc-500">
+                {c.capitalInputModeLabel}
+              </Label>
+              <div
+                className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1 sm:flex-row dark:border-zinc-800 dark:bg-zinc-900/50"
+                role="group"
+                aria-label={c.capitalInputModeLabel}
+              >
+                <button
+                  type="button"
+                  onClick={() => setCapitalInputMode("total")}
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors sm:text-sm",
+                    capitalInputMode === "total"
+                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                      : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300",
+                  )}
+                >
+                  {c.capitalInputModeTotal}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCapitalInputMode("perAsset")}
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors sm:text-sm",
+                    capitalInputMode === "perAsset"
+                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                      : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300",
+                  )}
+                >
+                  {c.capitalInputModePerAsset}
+                </button>
+              </div>
+            </div>
+
+            {capitalInputMode === "total" ? (
+              <div className="space-y-2">
+                <Label>{c.initialCapital}</Label>
+                <Input
+                  inputMode="numeric"
+                  placeholder={c.initialCapitalPlaceholder}
+                  value={initialCapital}
+                  onChange={(e) => setInitialCapital(e.target.value)}
+                />
+                <span className="text-xs text-zinc-500">{c.toman}</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activeAssets.map((asset) => (
+                  <div
+                    key={asset.id}
+                    className="space-y-2 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900/50"
+                  >
+                    <Label>{assetLabel(asset, locale)}</Label>
+                    <Input
+                      inputMode="numeric"
+                      placeholder="0"
+                      value={assetCapitals[asset.key] ?? ""}
+                      onChange={(e) =>
+                        updateAssetCapital(asset.key, e.target.value)
+                      }
+                    />
+                  </div>
+                ))}
+                <div className="flex justify-between border-t border-zinc-100 pt-4 text-sm dark:border-zinc-800">
+                  <span className="text-zinc-500">{c.totalCapitalLabel}</span>
+                  <span className="font-medium tabular-nums">
+                    {formatTomanCompact(effectiveInitialCapital, locale)}{" "}
+                    {c.toman}
+                  </span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -659,16 +793,19 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
             ) : (
               <ul className="space-y-2">
                 {history.map((plan) => (
-                  <li
-                    key={plan.id}
-                    className="flex justify-between rounded-lg border p-3 text-sm"
-                  >
-                    <span className="tabular-nums">
-                      {formatToman(plan.monthlyExpense, locale)} {c.toman}/mo
-                    </span>
-                    <span className="font-medium tabular-nums">
-                      {formatYears(plan.yearsToFreedom, locale)} {c.yearsUnit}
-                    </span>
+                  <li key={plan.id}>
+                    <Link
+                      href={`/${locale}/plans/${plan.id}`}
+                      className="flex items-center justify-between rounded-lg border p-3 text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+                    >
+                      <span className="tabular-nums">
+                        {formatToman(plan.monthlyExpense, locale)} {c.toman}/mo
+                      </span>
+                      <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                        {formatYears(plan.yearsToFreedom, locale)} {c.yearsUnit}
+                        {" →"}
+                      </span>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -694,9 +831,9 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
             className="flex-1"
             disabled={
               (step === 1 && (!monthlyExpense || Number(monthlyExpense) <= 0)) ||
-              (step === 2 && Number(initialCapital) < 0) ||
-              (step === 3 &&
-                (realPreview <= 0 || historicalData.length === 0))
+              (step === 2 &&
+                (realPreview <= 0 || historicalData.length === 0)) ||
+              (step === 3 && effectiveInitialCapital < 0)
             }
             onClick={() => setStep((s) => s + 1)}
           >

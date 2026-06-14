@@ -58,7 +58,7 @@ function decimalToPercentInput(value: number | null): string {
 function percentInputToDecimal(value: string): number | null {
   const trimmed = value.trim();
 
-  if (!trimmed || trimmed === "—" || trimmed === "-") {
+  if (!trimmed || trimmed === "—") {
     return null;
   }
 
@@ -69,6 +69,17 @@ function percentInputToDecimal(value: string): number | null {
   }
 
   return parsed / 100;
+}
+
+function isPartialPercentInput(value: string): boolean {
+  return /^-?$|^-?\d*\.?\d*$/.test(value.trim());
+}
+
+function historicalInputKey(
+  year: number,
+  field: keyof HistoricalReturnRow,
+): string {
+  return `${year}:${field}`;
 }
 
 export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
@@ -86,6 +97,9 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     "idle",
   );
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingInputs, setPendingInputs] = useState<Record<string, string>>(
+    {},
+  );
 
   const portfolioAssets = useMemo(
     () => assetClasses.filter((asset) => isPortfolioAssetKey(asset.key)),
@@ -137,15 +151,57 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     rawValue: string,
     nullable = false,
   ) {
+    const key = historicalInputKey(year, field);
+
+    setPendingInputs((pending) => ({ ...pending, [key]: rawValue }));
+
     setHistoricalReturns((rows) =>
       rows.map((row) => {
         if (row.year !== year) {
           return row;
         }
 
-        if (nullable) {
-          const decimal = percentInputToDecimal(rawValue);
-          return { ...row, [field]: decimal };
+        if (nullable && rawValue.trim() === "") {
+          return { ...row, [field]: null };
+        }
+
+        const decimal = percentInputToDecimal(rawValue);
+
+        if (decimal == null) {
+          if (isPartialPercentInput(rawValue)) {
+            return row;
+          }
+
+          return row;
+        }
+
+        return { ...row, [field]: decimal };
+      }),
+    );
+  }
+
+  function commitHistoricalField(
+    year: number,
+    field: keyof HistoricalReturnRow,
+    rawValue: string,
+    nullable = false,
+  ) {
+    const key = historicalInputKey(year, field);
+
+    setPendingInputs((pending) => {
+      const next = { ...pending };
+      delete next[key];
+      return next;
+    });
+
+    setHistoricalReturns((rows) =>
+      rows.map((row) => {
+        if (row.year !== year) {
+          return row;
+        }
+
+        if (nullable && rawValue.trim() === "") {
+          return { ...row, [field]: null };
         }
 
         const decimal = percentInputToDecimal(rawValue);
@@ -163,6 +219,11 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     row: HistoricalReturnRow,
     field: keyof HistoricalReturnRow,
   ): string {
+    const key = historicalInputKey(row.year, field);
+    if (key in pendingInputs) {
+      return pendingInputs[key];
+    }
+
     const value = row[field];
 
     if (typeof value === "number") {
@@ -198,6 +259,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
       setHistoricalReturns(
         (await historicalRes.json()) as HistoricalReturnRow[],
       );
+      setPendingInputs({});
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
     } catch {
@@ -238,6 +300,14 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                     value={getHistoricalFieldValue(row, field)}
                     onChange={(e) =>
                       updateHistoricalField(
+                        row.year,
+                        field,
+                        e.target.value,
+                        nullable,
+                      )
+                    }
+                    onBlur={(e) =>
+                      commitHistoricalField(
                         row.year,
                         field,
                         e.target.value,

@@ -10,6 +10,7 @@ type HistoricalReturnUpdate = {
   bankDeposit: number;
   investmentFund: number;
   crypto: number | null;
+  dollar: number;
 };
 
 function isValidRate(value: number): boolean {
@@ -48,6 +49,7 @@ export async function PATCH(request: NextRequest) {
       !isValidRate(row.gold) ||
       !isValidRate(row.bankDeposit) ||
       !isValidRate(row.investmentFund) ||
+      !isValidRate(row.dollar) ||
       (row.crypto != null && !isValidRate(row.crypto))
     ) {
       return NextResponse.json(
@@ -68,6 +70,7 @@ export async function PATCH(request: NextRequest) {
           bankDeposit: row.bankDeposit,
           investmentFund: row.investmentFund,
           crypto: row.crypto,
+          dollar: row.dollar,
         },
       }),
     ),
