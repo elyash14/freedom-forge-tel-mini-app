@@ -6,6 +6,7 @@ import { localeDirection, type Locale, locales } from "@/i18n/config";
 import { getDictionary } from "@/i18n/get-dictionary";
 
 import "../globals.css";
+import { TelegramProvider } from "@/components/telegram/telegram-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -61,6 +62,7 @@ export default async function LocaleLayout({
   }
 
   const typedLocale = locale as Locale;
+  const dictionary = await getDictionary(typedLocale);
   const direction = localeDirection(typedLocale);
   const fontClass =
     typedLocale === "fa"
@@ -74,7 +76,7 @@ export default async function LocaleLayout({
       className={`${fontClass} h-full antialiased`}
     >
       <body
-        className="min-h-full flex flex-col"
+        className="flex min-h-full flex-col bg-[var(--tg-theme-bg-color,var(--background))] text-[var(--tg-theme-text-color,var(--foreground))]"
         style={{
           fontFamily:
             typedLocale === "fa"
@@ -82,7 +84,12 @@ export default async function LocaleLayout({
               : "var(--font-geist-sans), Arial, Helvetica, sans-serif",
         }}
       >
-        {children}
+        <TelegramProvider
+          locale={typedLocale}
+          loadingText={dictionary.telegram.loading}
+        >
+          {children}
+        </TelegramProvider>
       </body>
     </html>
   );

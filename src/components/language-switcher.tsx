@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 
+import { useTelegram } from "@/components/telegram/telegram-provider";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/i18n/config";
 import { locales } from "@/i18n/config";
@@ -19,8 +20,13 @@ export function LanguageSwitcher({
   dictionary,
   className,
 }: LanguageSwitcherProps) {
+  const { isTelegram } = useTelegram();
   const pathname = usePathname();
   const router = useRouter();
+
+  if (isTelegram) {
+    return null;
+  }
 
   function switchLocale(nextLocale: Locale) {
     document.cookie = `locale=${nextLocale};path=/;max-age=31536000`;

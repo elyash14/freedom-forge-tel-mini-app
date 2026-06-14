@@ -10,6 +10,19 @@
   --muted-foreground: #71717a;
   --primary: #18181b;
   --primary-foreground: #fafafa;
+
+  --tg-theme-bg-color: var(--background);
+  --tg-theme-text-color: var(--foreground);
+  --tg-theme-hint-color: var(--muted-foreground);
+  --tg-theme-link-color: #2481cc;
+  --tg-theme-button-color: #2481cc;
+  --tg-theme-button-text-color: #ffffff;
+  --tg-theme-secondary-bg-color: var(--muted);
+  --tg-theme-header-bg-color: var(--background);
+  --tg-theme-section-bg-color: var(--card);
+  --tg-theme-section-header-text-color: var(--muted-foreground);
+  --tg-theme-subtitle-text-color: var(--muted-foreground);
+  --tg-theme-destructive-text-color: #ff3b30;
 }
 
 @theme inline {
@@ -28,20 +41,30 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --card: #0a0a0a;
-    --card-foreground: #ededed;
-    --border: #27272a;
-    --muted: #18181b;
-    --muted-foreground: #a1a1aa;
-    --primary: #fafafa;
-    --primary-foreground: #18181b;
+    --background: #18222d;
+    --foreground: #ffffff;
+    --card: #232e3c;
+    --card-foreground: #ffffff;
+    --border: #2b3947;
+    --muted: #232e3c;
+    --muted-foreground: #708499;
+    --primary: #2481cc;
+    --primary-foreground: #ffffff;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--tg-theme-bg-color, var(--background));
+  color: var(--tg-theme-text-color, var(--foreground));
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+.tg-section {
+  background: var(--tg-theme-section-bg-color, var(--card));
+  border: 1px solid var(--tg-theme-secondary-bg-color, var(--border));
+  border-radius: 12px;
+}
+
+.tg-hint {
+  color: var(--tg-theme-hint-color, var(--muted-foreground));
 }

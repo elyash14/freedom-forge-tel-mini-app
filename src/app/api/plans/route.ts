@@ -1,11 +1,12 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 import { calculateFreedom, type PortfolioAllocation } from "@/lib/freedom-calculator";
 import type { HistoricalReturnRow } from "@/lib/historical-returns";
 import { prisma } from "@/lib/prisma";
-
-const SESSION_COOKIE = "freedom_session";
+import {
+  getUserIdFromRequest,
+  unauthorizedResponse,
+} from "@/lib/telegram/plan-access";
 
 type SavePlanBody = {
   locale: string;
@@ -16,26 +17,14 @@ type SavePlanBody = {
   monthlyContribution: number;
 };
 
-async function getOrCreateSessionId(request: NextRequest): Promise<string> {
-  const existing = request.cookies.get(SESSION_COOKIE)?.value;
-  if (existing) {
-    return existing;
-  }
-
-  return crypto.randomUUID();
-}
-
 export async function GET(request: NextRequest) {
-  const sessionId =
-    request.cookies.get(SESSION_COOKIE)?.value ??
-    request.nextUrl.searchParams.get("sessionId");
-
-  if (!sessionId) {
-    return NextResponse.json({ plans: [] });
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return unauthorizedResponse();
   }
 
   const plans = await prisma.freedomPlan.findMany({
-    where: { sessionId },
+    where: { userId },
     orderBy: { createdAt: "desc" },
     take: 20,
   });
@@ -44,8 +33,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
   const body = (await request.json()) as SavePlanBody;
-  const sessionId = await getOrCreateSessionId(request);
 
   const historicalRows = await prisma.historicalReturn.findMany({
     orderBy: { year: "asc" },
@@ -79,7 +72,8 @@ export async function POST(request: NextRequest) {
 
   const plan = await prisma.freedomPlan.create({
     data: {
-      sessionId,
+      userId,
+      sessionId: "",
       locale: body.locale,
       monthlyExpense: result.monthlyExpense,
       initialCapital: result.initialCapital,
@@ -93,27 +87,16 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const response = NextResponse.json({ plan, result });
-
-  if (!request.cookies.get(SESSION_COOKIE)?.value) {
-    response.cookies.set(SESSION_COOKIE, sessionId, {
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 365,
-      path: "/",
-    });
-  }
-
-  return response;
+  return NextResponse.json({ plan, result });
 }
 
-export async function DELETE() {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
-
-  if (sessionId) {
-    await prisma.freedomPlan.deleteMany({ where: { sessionId } });
+export async function DELETE(request: NextRequest) {
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return unauthorizedResponse();
   }
+
+  await prisma.freedomPlan.deleteMany({ where: { userId } });
 
   return NextResponse.json({ ok: true });
 }

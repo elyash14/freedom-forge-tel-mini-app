@@ -86,6 +86,14 @@ export const fa = {
   },
   language: { label: "زبان", en: "English", fa: "فارسی" },
   nav: { settings: "تنظیمات", plans: "طرح‌های من" },
+  telegram: {
+    gateTitle: "فقط از تلگرام",
+    gateDescription:
+      "این اپ یک مینی‌اپ تلگرام است. برای استفاده، آن را از داخل ربات تلگرام باز کنید.",
+    gateOpenBot: "رفتن به ربات",
+    gateBotNotConfigured: "نام کاربری ربات در سرور تنظیم نشده است.",
+    loading: "در حال بارگذاری…",
+  },
   settings: {
     title: "تنظیمات",
     subtitle: "ویرایش نام دارایی‌ها و بازده سال‌به‌سال.",

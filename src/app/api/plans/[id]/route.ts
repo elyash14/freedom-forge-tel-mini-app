@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import {
+  assertPlanOwner,
+  getUserIdFromRequest,
+  unauthorizedResponse,
+} from "@/lib/telegram/plan-access";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
   const { id } = await params;
-  const plan = await prisma.freedomPlan.findUnique({
-    where: { id },
-  });
+  const plan = await assertPlanOwner(id, userId);
 
   if (!plan) {
-    return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+    return NextResponse.json({ error: "Plan not found." }, { status: 404 });
   }
 
   return NextResponse.json({ plan });

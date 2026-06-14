@@ -41,7 +41,10 @@ model AssetClass {
 
 model User {
   id           String        @id @default(cuid())
-  telegramId   BigInt?       @unique
+  telegramId   BigInt        @unique
+  username     String?
+  firstName    String?
+  lastName     String?
   locale       String        @default("fa")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -52,7 +55,7 @@ model FreedomPlan {
   id                  String   @id @default(cuid())
   userId              String?
   user                User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  sessionId           String
+  sessionId           String         @default("")
   locale              String   @default("fa")
   monthlyExpense      Float
   initialCapital      Float

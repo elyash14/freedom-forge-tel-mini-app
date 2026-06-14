@@ -1,12 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import {
+  assertPlanOwner,
+  getUserIdFromRequest,
+  unauthorizedResponse,
+} from "@/lib/telegram/plan-access";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
   const { id: planId } = await params;
+  const plan = await assertPlanOwner(planId, userId);
+
+  if (!plan) {
+    return NextResponse.json({ error: "Plan not found." }, { status: 404 });
+  }
 
   const progressRecords = await prisma.planProgress.findMany({
     where: { planId },
@@ -20,7 +35,18 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return unauthorizedResponse();
+  }
+
   const { id: planId } = await params;
+  const plan = await assertPlanOwner(planId, userId);
+
+  if (!plan) {
+    return NextResponse.json({ error: "Plan not found." }, { status: 404 });
+  }
+
   const body = await request.json();
 
   const year = Number(body.year);
@@ -40,18 +66,6 @@ export async function POST(
     return NextResponse.json(
       { error: "Invalid progress data." },
       { status: 400 },
-    );
-  }
-
-  // Check if plan exists
-  const plan = await prisma.freedomPlan.findUnique({
-    where: { id: planId },
-  });
-
-  if (!plan) {
-    return NextResponse.json(
-      { error: "Plan not found." },
-      { status: 404 },
     );
   }
 

@@ -16,6 +16,8 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { useTelegram } from "@/components/telegram/telegram-provider";
+import { useTelegramMainButton } from "@/components/telegram/use-telegram-main-button";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -47,6 +49,7 @@ import {
   calculateExpectedInflation,
   type HistoricalReturnRow,
 } from "@/lib/historical-returns";
+import { cn } from "@/lib/utils";
 
 type FreedomPlanDto = {
   id: string;
@@ -167,6 +170,7 @@ function getPlannedCapitalAtMonth(
 
 export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps) {
   const p = dictionary.planDashboard;
+  const { isTelegram } = useTelegram();
 
   const [plan, setPlan] = useState<FreedomPlanDto | null>(null);
   const [progress, setProgress] = useState<PlanProgressDto[]>([]);
@@ -271,6 +275,30 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
   const totalValue = useMemo(() => {
     return Object.values(assetInputs).reduce((sum, val) => sum + (Number(val.totalValue?.replace(/,/g, '')) || 0), 0);
   }, [assetInputs]);
+
+  const canSaveProgress = totalContribution !== 0 || totalValue !== 0;
+
+  useTelegramMainButton({
+    visible: isTelegram,
+    text: isDrawerOpen
+      ? saveState === "saving"
+        ? p.saving
+        : saveState === "saved"
+          ? p.saved
+          : p.saveProgress
+      : p.addProgressTitle,
+    disabled: isDrawerOpen
+      ? !canSaveProgress || saveState === "saving"
+      : false,
+    loading: isDrawerOpen && saveState === "saving",
+    onClick: () => {
+      if (isDrawerOpen) {
+        void saveProgress();
+        return;
+      }
+      setIsDrawerOpen(true);
+    },
+  });
 
   const expectedInflation = useMemo(
     () => calculateExpectedInflation(historicalData),
@@ -622,9 +650,8 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
                         </td>
                         <td className="py-2 text-right">
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400"
+                            variant="outline"
+                            className="h-8 w-8 p-0 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400"
                             onClick={() => void deleteProgress(prog.id)}
                             title={p.delete}
                           >
@@ -642,22 +669,26 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
         </Card>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/80 p-4 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/80 sm:hidden">
-        <Button className="w-full rounded-full" size="lg" onClick={() => setIsDrawerOpen(true)}>
-          <Plus className="me-2 h-5 w-5" />
-          {p.addProgressTitle}
-        </Button>
-      </div>
+      {!isTelegram && (
+        <>
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/80 p-4 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/80 sm:hidden">
+            <Button className="h-12 w-full rounded-full" onClick={() => setIsDrawerOpen(true)}>
+              <Plus className="me-2 h-5 w-5" />
+              {p.addProgressTitle}
+            </Button>
+          </div>
 
-      <div className="hidden sm:block">
-        <Button 
-          className="fixed bottom-8 right-8 h-14 rounded-full px-6 shadow-lg hover:shadow-xl dark:shadow-zinc-900/50 z-40"
-          onClick={() => setIsDrawerOpen(true)}
-        >
-          <Plus className="me-2 h-5 w-5" />
-          {p.addProgressTitle}
-        </Button>
-      </div>
+          <div className="hidden sm:block">
+            <Button
+              className="fixed bottom-8 right-8 z-40 h-14 rounded-full px-6 shadow-lg hover:shadow-xl dark:shadow-zinc-900/50"
+              onClick={() => setIsDrawerOpen(true)}
+            >
+              <Plus className="me-2 h-5 w-5" />
+              {p.addProgressTitle}
+            </Button>
+          </div>
+        </>
+      )}
 
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <DrawerContent className="mx-auto max-h-[90vh] sm:max-w-lg">
@@ -733,8 +764,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
               </div>
 
               <Button
-                className="w-full"
-                size="lg"
+                className={cn("h-12 w-full", isTelegram && "hidden")}
                 disabled={
                   totalContribution === 0 && totalValue === 0 || saveState === "saving"
                 }

@@ -86,6 +86,14 @@ export const en = {
   },
   language: { label: "Language", en: "English", fa: "فارسی" },
   nav: { settings: "Settings", plans: "My Plans" },
+  telegram: {
+    gateTitle: "Telegram only",
+    gateDescription:
+      "This app is a Telegram Mini App. Open it from inside your Telegram bot.",
+    gateOpenBot: "Open bot",
+    gateBotNotConfigured: "Bot username is not configured on the server.",
+    loading: "Loading…",
+  },
   settings: {
     title: "Settings",
     subtitle: "Edit asset labels and year-by-year historical returns.",

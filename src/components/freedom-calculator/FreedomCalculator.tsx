@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { useTelegram } from "@/components/telegram/telegram-provider";
+import { useTelegramBackButton } from "@/components/telegram/use-telegram-back-button";
+import { useTelegramMainButton } from "@/components/telegram/use-telegram-main-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -73,6 +76,7 @@ function assetLabel(asset: AssetClassDto, locale: Locale): string {
 
 export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps) {
   const c = dictionary.calculator;
+  const { isTelegram } = useTelegram();
   const [step, setStep] = useState(1);
   const [monthlyExpense, setMonthlyExpense] = useState("");
   const [initialCapital, setInitialCapital] = useState("0");
@@ -379,6 +383,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
       const { plan } = (await res.json()) as { plan: SavedPlan };
       setHistory((h) => [plan, ...h].slice(0, 20));
       setSaveState("saved");
+      setStep(5);
       setTimeout(() => setSaveState("idle"), 2000);
     } catch {
       setSaveState("idle");
@@ -386,6 +391,39 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   }
 
   const steps = [c.step1, c.step2, c.step3, c.step4, c.step5];
+
+  const stepNextDisabled =
+    (step === 1 && (!monthlyExpense || Number(monthlyExpense) <= 0)) ||
+    (step === 2 && (realPreview <= 0 || historicalData.length === 0)) ||
+    (step === 3 && effectiveInitialCapital < 0);
+
+  const mainButtonText =
+    step === 4
+      ? saveState === "saving"
+        ? c.saving
+        : saveState === "saved"
+          ? c.saved
+          : c.save
+      : c.next;
+
+  useTelegramBackButton({
+    visible: step > 1,
+    onClick: () => setStep((current) => current - 1),
+  });
+
+  useTelegramMainButton({
+    visible: step < 5,
+    text: mainButtonText,
+    disabled: step === 4 ? !result || saveState === "saving" : stepNextDisabled,
+    loading: step === 4 && saveState === "saving",
+    onClick: () => {
+      if (step === 4) {
+        void savePlan();
+        return;
+      }
+      setStep((current) => current + 1);
+    },
+  });
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
@@ -679,7 +717,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
 
             <Button
               type="button"
-              className="w-full"
+              className={cn("w-full", isTelegram && "hidden")}
               disabled={!result || saveState === "saving"}
               onClick={() => void savePlan()}
             >
@@ -814,33 +852,30 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
         </Card>
       )}
 
-      <div className="flex gap-3">
-        {step > 1 && (
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1"
-            onClick={() => setStep((s) => s - 1)}
-          >
-            {c.back}
-          </Button>
-        )}
-        {step < 5 && (
-          <Button
-            type="button"
-            className="flex-1"
-            disabled={
-              (step === 1 && (!monthlyExpense || Number(monthlyExpense) <= 0)) ||
-              (step === 2 &&
-                (realPreview <= 0 || historicalData.length === 0)) ||
-              (step === 3 && effectiveInitialCapital < 0)
-            }
-            onClick={() => setStep((s) => s + 1)}
-          >
-            {c.next}
-          </Button>
-        )}
-      </div>
+      {!isTelegram && (
+        <div className="flex gap-3">
+          {step > 1 && (
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setStep((s) => s - 1)}
+            >
+              {c.back}
+            </Button>
+          )}
+          {step < 5 && (
+            <Button
+              type="button"
+              className="flex-1"
+              disabled={stepNextDisabled}
+              onClick={() => setStep((s) => s + 1)}
+            >
+              {c.next}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

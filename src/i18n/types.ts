@@ -100,6 +100,13 @@ export type Dictionary = {
     saveError: string;
   };
   nav: { settings: string; plans: string };
+  telegram: {
+    gateTitle: string;
+    gateDescription: string;
+    gateOpenBot: string;
+    gateBotNotConfigured: string;
+    loading: string;
+  };
   planDashboard: {
     title: string;
     backToCalculator: string;
