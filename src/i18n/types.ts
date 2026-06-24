@@ -77,7 +77,6 @@ export type Dictionary = {
   settings: {
     title: string;
     subtitle: string;
-    backToCalculator: string;
     mainTabAssetClasses: string;
     mainTabHistoricalData: string;
     assetsSection: string;
@@ -99,7 +98,7 @@ export type Dictionary = {
     loadError: string;
     saveError: string;
   };
-  nav: { settings: string; plans: string };
+  nav: { calculator: string; plans: string; settings: string };
   telegram: {
     gateTitle: string;
     gateDescription: string;
@@ -109,7 +108,7 @@ export type Dictionary = {
   };
   planDashboard: {
     title: string;
-    backToCalculator: string;
+    backToPlans: string;
     targetCapital: string;
     monthlyContribution: string;
     yearsToFreedom: string;

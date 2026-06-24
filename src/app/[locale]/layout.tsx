@@ -7,6 +7,7 @@ import { getDictionary } from "@/i18n/get-dictionary";
 
 import "../globals.css";
 import { TelegramProvider } from "@/components/telegram/telegram-provider";
+import { AppShell } from "@/components/navigation/app-shell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -76,7 +77,7 @@ export default async function LocaleLayout({
       className={`${fontClass} h-full antialiased`}
     >
       <body
-        className="flex min-h-full flex-col bg-[var(--tg-theme-bg-color,var(--background))] text-[var(--tg-theme-text-color,var(--foreground))]"
+        className="flex h-full flex-col overflow-hidden bg-[var(--tg-theme-bg-color,var(--background))] text-[var(--tg-theme-text-color,var(--foreground))]"
         style={{
           fontFamily:
             typedLocale === "fa"
@@ -88,7 +89,16 @@ export default async function LocaleLayout({
           locale={typedLocale}
           loadingText={dictionary.telegram.loading}
         >
-          {children}
+          <AppShell
+            locale={typedLocale}
+            navLabels={{
+              calculator: dictionary.nav.calculator,
+              plans: dictionary.nav.plans,
+              settings: dictionary.nav.settings,
+            }}
+          >
+            {children}
+          </AppShell>
         </TelegramProvider>
       </body>
     </html>

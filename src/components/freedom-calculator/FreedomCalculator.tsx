@@ -1,12 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
-import { useTelegram } from "@/components/telegram/telegram-provider";
-import { useTelegramBackButton } from "@/components/telegram/use-telegram-back-button";
-import { useTelegramMainButton } from "@/components/telegram/use-telegram-main-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -55,14 +50,6 @@ type AssetClassDto = {
   labelEn: string;
 };
 
-type SavedPlan = {
-  id: string;
-  monthlyExpense: number;
-  targetCapital: number;
-  yearsToFreedom: number;
-  createdAt: string;
-};
-
 type CapitalInputMode = "total" | "perAsset";
 
 type FreedomCalculatorProps = {
@@ -76,7 +63,6 @@ function assetLabel(asset: AssetClassDto, locale: Locale): string {
 
 export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps) {
   const c = dictionary.calculator;
-  const { isTelegram } = useTelegram();
   const [step, setStep] = useState(1);
   const [monthlyExpense, setMonthlyExpense] = useState("");
   const [initialCapital, setInitialCapital] = useState("0");
@@ -96,7 +82,6 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
-  const [history, setHistory] = useState<SavedPlan[]>([]);
   const [projectionScenario, setProjectionScenario] =
     useState<ProjectionScenario>("real");
 
@@ -108,10 +93,9 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   useEffect(() => {
     async function load() {
       try {
-        const [historicalRes, assetsRes, plansRes] = await Promise.all([
+        const [historicalRes, assetsRes] = await Promise.all([
           fetch("/api/historical-returns"),
           fetch("/api/asset-classes"),
-          fetch("/api/plans"),
         ]);
 
         if (!historicalRes.ok || !assetsRes.ok) {
@@ -124,11 +108,6 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
         setHistoricalData(historical);
         setAssetClasses(assets);
         initAllocation(assets);
-
-        if (plansRes.ok) {
-          const { plans } = (await plansRes.json()) as { plans: SavedPlan[] };
-          setHistory(plans);
-        }
       } catch {
         setLoadError(c.loadError);
       } finally {
@@ -380,8 +359,6 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
         }),
       });
       if (!res.ok) throw new Error();
-      const { plan } = (await res.json()) as { plan: SavedPlan };
-      setHistory((h) => [plan, ...h].slice(0, 20));
       setSaveState("saved");
       setStep(5);
       setTimeout(() => setSaveState("idle"), 2000);
@@ -397,61 +374,12 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     (step === 2 && (realPreview <= 0 || historicalData.length === 0)) ||
     (step === 3 && effectiveInitialCapital < 0);
 
-  const mainButtonText =
-    step === 4
-      ? saveState === "saving"
-        ? c.saving
-        : saveState === "saved"
-          ? c.saved
-          : c.save
-      : c.next;
-
-  useTelegramBackButton({
-    visible: step > 1,
-    onClick: () => setStep((current) => current - 1),
-  });
-
-  useTelegramMainButton({
-    visible: step < 5,
-    text: mainButtonText,
-    disabled: step === 4 ? !result || saveState === "saving" : stepNextDisabled,
-    loading: step === 4 && saveState === "saving",
-    onClick: () => {
-      if (step === 4) {
-        void savePlan();
-        return;
-      }
-      setStep((current) => current + 1);
-    },
-  });
-
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
+    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-8 pb-28">
       <header className="space-y-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2 text-center sm:text-start">
-            <h1 className="text-3xl font-bold tracking-tight">{c.title}</h1>
-            <p className="text-zinc-600 dark:text-zinc-400">{c.subtitle}</p>
-          </div>
-          <LanguageSwitcher
-            locale={locale}
-            dictionary={dictionary}
-            className="justify-center sm:justify-end"
-          />
-        </div>
-        <div className="flex justify-center gap-4 sm:justify-end">
-          <Link
-            href={`/${locale}/plans`}
-            className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
-          >
-            {dictionary.nav.plans}
-          </Link>
-          <Link
-            href={`/${locale}/settings`}
-            className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
-          >
-            {dictionary.nav.settings}
-          </Link>
+        <div className="space-y-2 text-center sm:text-start">
+          <h1 className="text-3xl font-bold tracking-tight">{c.title}</h1>
+          <p className="text-zinc-600 dark:text-zinc-400">{c.subtitle}</p>
         </div>
         <div className="flex gap-1">
           {steps.map((label, i) => (
@@ -714,19 +642,6 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
                 ))}
               </ul>
             )}
-
-            <Button
-              type="button"
-              className={cn("w-full", isTelegram && "hidden")}
-              disabled={!result || saveState === "saving"}
-              onClick={() => void savePlan()}
-            >
-              {saveState === "saving"
-                ? c.saving
-                : saveState === "saved"
-                  ? c.saved
-                  : c.save}
-            </Button>
           </CardContent>
         </Card>
       )}
@@ -820,60 +735,44 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
         </Card>
       )}
 
-      {step === 5 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{c.historyTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {history.length === 0 ? (
-              <p className="text-sm text-zinc-500">{c.noHistory}</p>
-            ) : (
-              <ul className="space-y-2">
-                {history.map((plan) => (
-                  <li key={plan.id}>
-                    <Link
-                      href={`/${locale}/plans/${plan.id}`}
-                      className="flex items-center justify-between rounded-lg border p-3 text-sm transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
-                    >
-                      <span className="tabular-nums">
-                        {formatToman(plan.monthlyExpense, locale)} {c.toman}/mo
-                      </span>
-                      <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
-                        {formatYears(plan.yearsToFreedom, locale)} {c.yearsUnit}
-                        {" →"}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+      {step < 5 && (
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-bg-color,var(--background))] p-3">
+          <div className="mx-auto flex max-w-2xl gap-3">
+            {step > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 border-[var(--tg-theme-secondary-bg-color,var(--border))]"
+                onClick={() => setStep((s) => s - 1)}
+              >
+                {c.back}
+              </Button>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {!isTelegram && (
-        <div className="flex gap-3">
-          {step > 1 && (
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
-              onClick={() => setStep((s) => s - 1)}
-            >
-              {c.back}
-            </Button>
-          )}
-          {step < 5 && (
-            <Button
-              type="button"
-              className="flex-1"
-              disabled={stepNextDisabled}
-              onClick={() => setStep((s) => s + 1)}
-            >
-              {c.next}
-            </Button>
-          )}
+            {step < 4 && (
+              <Button
+                type="button"
+                className="flex-1 bg-[var(--tg-theme-button-color,var(--primary))] text-[var(--tg-theme-button-text-color,var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
+                disabled={stepNextDisabled}
+                onClick={() => setStep((s) => s + 1)}
+              >
+                {c.next}
+              </Button>
+            )}
+            {step === 4 && (
+              <Button
+                type="button"
+                className="flex-1 bg-[var(--tg-theme-button-color,var(--primary))] text-[var(--tg-theme-button-text-color,var(--primary-foreground))] hover:opacity-90 disabled:opacity-50"
+                disabled={!result || saveState === "saving"}
+                onClick={() => void savePlan()}
+              >
+                {saveState === "saving"
+                  ? c.saving
+                  : saveState === "saved"
+                    ? c.saved
+                    : c.save}
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>

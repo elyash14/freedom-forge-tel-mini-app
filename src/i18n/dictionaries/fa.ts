@@ -85,7 +85,7 @@ export const fa = {
     unreachable: "با این ورودی‌ها رسیدن به هدف ممکن نیست.",
   },
   language: { label: "زبان", en: "English", fa: "فارسی" },
-  nav: { settings: "تنظیمات", plans: "طرح‌های من" },
+  nav: { calculator: "محاسبه", plans: "طرح‌ها", settings: "تنظیمات" },
   telegram: {
     gateTitle: "فقط از تلگرام",
     gateDescription:
@@ -97,7 +97,6 @@ export const fa = {
   settings: {
     title: "تنظیمات",
     subtitle: "ویرایش نام دارایی‌ها و بازده سال‌به‌سال.",
-    backToCalculator: "برگشت به ماشین‌حساب",
     mainTabAssetClasses: "کلاس‌های دارایی",
     mainTabHistoricalData: "داده‌های سبد",
     assetsSection: "کلاس‌های دارایی",
@@ -122,7 +121,7 @@ export const fa = {
   },
   planDashboard: {
     title: "پیشرفت طرح",
-    backToCalculator: "برگشت به ماشین‌حساب",
+    backToPlans: "برگشت به طرح‌ها",
     targetCapital: "سرمایه هدف",
     monthlyContribution: "سرمایه‌گذاری ماهانه",
     yearsToFreedom: "زمان تا آزادی",

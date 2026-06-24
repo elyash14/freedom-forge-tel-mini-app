@@ -85,7 +85,7 @@ export const en = {
     unreachable: "Target is unreachable with these inputs.",
   },
   language: { label: "Language", en: "English", fa: "فارسی" },
-  nav: { settings: "Settings", plans: "My Plans" },
+  nav: { calculator: "Calculator", plans: "Plans", settings: "Settings" },
   telegram: {
     gateTitle: "Telegram only",
     gateDescription:
@@ -97,7 +97,6 @@ export const en = {
   settings: {
     title: "Settings",
     subtitle: "Edit asset labels and year-by-year historical returns.",
-    backToCalculator: "Back to calculator",
     mainTabAssetClasses: "Asset classes",
     mainTabHistoricalData: "Basket data",
     assetsSection: "Asset classes",
@@ -122,7 +121,7 @@ export const en = {
   },
   planDashboard: {
     title: "Plan Progress",
-    backToCalculator: "Back to calculator",
+    backToPlans: "Back to plans",
     targetCapital: "Target Capital",
     monthlyContribution: "Monthly Contribution",
     yearsToFreedom: "Years to Freedom",

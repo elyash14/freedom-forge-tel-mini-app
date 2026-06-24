@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -15,8 +16,8 @@ import {
 
 import { Plus, Trash2 } from "lucide-react";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { useTelegram } from "@/components/telegram/telegram-provider";
+import { useTelegramBackButton } from "@/components/telegram/use-telegram-back-button";
 import { useTelegramMainButton } from "@/components/telegram/use-telegram-main-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,6 +172,13 @@ function getPlannedCapitalAtMonth(
 export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps) {
   const p = dictionary.planDashboard;
   const { isTelegram } = useTelegram();
+  const router = useRouter();
+  const plansHref = `/${locale}/plans`;
+
+  useTelegramBackButton({
+    visible: isTelegram,
+    onClick: () => router.push(plansHref),
+  });
 
   const [plan, setPlan] = useState<FreedomPlanDto | null>(null);
   const [progress, setProgress] = useState<PlanProgressDto[]>([]);
@@ -476,24 +484,17 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8 pb-24">
+    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-8 pb-24">
       <header className="space-y-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2 text-center sm:text-start">
-            <h1 className="text-3xl font-bold tracking-tight">{p.title}</h1>
-          </div>
-          <LanguageSwitcher
-            locale={locale}
-            dictionary={dictionary}
-            className="justify-center sm:justify-end"
-          />
-        </div>
-        <Link
-          href={`/${locale}`}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-        >
-          {p.backToCalculator}
-        </Link>
+        <h1 className="text-3xl font-bold tracking-tight">{p.title}</h1>
+        {!isTelegram && (
+          <Link
+            href={plansHref}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+          >
+            {p.backToPlans}
+          </Link>
+        )}
       </header>
 
       <div className="flex flex-col gap-6">

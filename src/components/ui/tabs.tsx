@@ -31,7 +31,7 @@ type TabsProps = {
 function Tabs({ value, onValueChange, children, className }: TabsProps) {
   return (
     <TabsContext.Provider value={{ value, onValueChange }}>
-      <div className={cn("space-y-4", className)}>{children}</div>
+      <div className={cn("min-w-0 space-y-4", className)}>{children}</div>
     </TabsContext.Provider>
   );
 }
@@ -48,7 +48,7 @@ function TabsList({ children, className, "aria-label": ariaLabel }: TabsListProp
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        "flex gap-1 overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-800 dark:bg-zinc-900/50",
+        "flex max-w-full gap-1 overflow-x-auto rounded-lg border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-secondary-bg-color,var(--muted))] p-1",
         className,
       )}
     >
@@ -76,8 +76,8 @@ function TabsTrigger({ value, children, className }: TabsTriggerProps) {
       className={cn(
         "shrink-0 rounded-md px-3 py-2 text-xs font-medium transition-colors sm:text-sm",
         isActive
-          ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
-          : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300",
+          ? "bg-[var(--tg-theme-section-bg-color,var(--card))] text-[var(--tg-theme-text-color,var(--foreground))]"
+          : "text-[var(--tg-theme-hint-color,var(--muted-foreground))] hover:text-[var(--tg-theme-text-color,var(--foreground))]",
         className,
       )}
     >
@@ -100,7 +100,7 @@ function TabsContent({ value, children, className }: TabsContentProps) {
   }
 
   return (
-    <div role="tabpanel" className={className}>
+    <div role="tabpanel" className={cn("min-w-0", className)}>
       {children}
     </div>
   );

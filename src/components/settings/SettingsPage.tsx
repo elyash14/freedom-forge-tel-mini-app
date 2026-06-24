@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -326,25 +324,10 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      <header className="space-y-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2 text-center sm:text-start">
-            <h1 className="text-3xl font-bold tracking-tight">{s.title}</h1>
-            <p className="text-zinc-600 dark:text-zinc-400">{s.subtitle}</p>
-          </div>
-          <LanguageSwitcher
-            locale={locale}
-            dictionary={dictionary}
-            className="justify-center sm:justify-end"
-          />
-        </div>
-        <Link
-          href={`/${locale}`}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-        >
-          {s.backToCalculator}
-        </Link>
+    <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-6 px-4 py-8">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">{s.title}</h1>
+        <p className="text-sm text-[var(--tg-theme-hint-color,var(--muted-foreground))]">{s.subtitle}</p>
       </header>
 
       {loadError && (
@@ -393,7 +376,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                 {assetClasses.map((asset) => (
                   <div
                     key={asset.id}
-                    className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+                    className="space-y-3 rounded-lg border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-secondary-bg-color,var(--muted))] p-4"
                   >
                     <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                       {asset.key}
@@ -431,7 +414,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                 <p className="text-sm text-zinc-500">{s.historicalHint}</p>
               </div>
 
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-900/30 sm:p-4">
+              <div className="min-w-0 rounded-xl border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-secondary-bg-color,var(--muted))] p-3 sm:p-4">
                 <Tabs
                   value={historicalTab}
                   onValueChange={(value) =>
@@ -440,7 +423,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                 >
                   <TabsList
                     aria-label={s.historicalSection}
-                    className="mb-4 bg-white dark:bg-zinc-950"
+                    className="mb-4"
                   >
                     <TabsTrigger value={INFLATION_TAB}>
                       {s.historicalTabInflation}

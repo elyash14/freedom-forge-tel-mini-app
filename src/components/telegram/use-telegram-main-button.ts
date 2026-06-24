@@ -6,10 +6,13 @@ import {
   mountMainButton,
   offMainButtonClick,
   onMainButtonClick,
-  setMainButtonParams,
   unmountMainButton,
 } from "@telegram-apps/sdk";
 
+import {
+  hideTelegramMainButton,
+  showTelegramMainButton,
+} from "@/lib/telegram/main-button";
 import { useTelegram } from "@/components/telegram/telegram-provider";
 
 type UseTelegramMainButtonOptions = {
@@ -38,9 +41,7 @@ export function useTelegramMainButton({
     if (!isTelegram) return;
 
     if (!visible) {
-      if (isMainButtonMounted() && setMainButtonParams.isAvailable()) {
-        setMainButtonParams({ isVisible: false });
-      }
+      hideTelegramMainButton();
       return;
     }
 
@@ -48,32 +49,25 @@ export function useTelegramMainButton({
       mountMainButton();
     }
 
-    if (setMainButtonParams.isAvailable()) {
-      setMainButtonParams({
-        text,
-        isEnabled: !disabled,
-        isVisible: true,
-        isLoaderVisible: loading,
-      });
-    }
-
     const handler = () => {
       onClickRef.current();
     };
+
+    showTelegramMainButton({
+      text,
+      disabled,
+      loading,
+      onClick: handler,
+    });
 
     const off = onMainButtonClick(handler);
 
     return () => {
       off();
       offMainButtonClick(handler);
+      hideTelegramMainButton();
     };
   }, [isTelegram, visible, text, disabled, loading]);
-
-  useEffect(() => {
-    return () => {
-      if (isTelegram && isMainButtonMounted()) {
-        unmountMainButton();
-      }
-    };
-  }, [isTelegram]);
 }
+
+export { hideTelegramMainButton } from "@/lib/telegram/main-button";

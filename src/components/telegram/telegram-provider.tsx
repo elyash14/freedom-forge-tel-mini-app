@@ -22,6 +22,7 @@ import {
 } from "@telegram-apps/sdk";
 
 import type { Locale } from "@/i18n/config";
+import { hideTelegramMainButton } from "@/lib/telegram/main-button";
 
 type TelegramContextValue = {
   isTelegram: boolean;
@@ -113,6 +114,8 @@ export function TelegramProvider({
         miniApp.ready();
       }
 
+      hideTelegramMainButton();
+
       if (setMiniAppHeaderColor.isAvailable()) {
         setMiniAppHeaderColor("bg_color");
       }
@@ -190,6 +193,10 @@ export function TelegramProvider({
   }
 
   return (
-    <TelegramContext.Provider value={value}>{children}</TelegramContext.Provider>
+    <TelegramContext.Provider value={value}>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        {children}
+      </div>
+    </TelegramContext.Provider>
   );
 }

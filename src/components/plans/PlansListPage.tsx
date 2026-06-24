@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
 import {
   Card,
   CardContent,
@@ -29,8 +28,7 @@ type PlansListPageProps = {
 
 export function PlansListPage({ locale, dictionary }: PlansListPageProps) {
   const c = dictionary.calculator;
-  const p = dictionary.planDashboard;
-  
+
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -51,24 +49,9 @@ export function PlansListPage({ locale, dictionary }: PlansListPageProps) {
   }, [loadPlans]);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
-      <header className="space-y-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2 text-center sm:text-start">
-            <h1 className="text-3xl font-bold tracking-tight">{dictionary.nav.plans}</h1>
-          </div>
-          <LanguageSwitcher
-            locale={locale}
-            dictionary={dictionary}
-            className="justify-center sm:justify-end"
-          />
-        </div>
-        <Link
-          href={`/${locale}`}
-          className="inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-        >
-          {p.backToCalculator}
-        </Link>
+    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-8">
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight">{dictionary.nav.plans}</h1>
       </header>
 
       <Card>
