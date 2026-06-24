@@ -190,6 +190,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
   const [assetInputs, setAssetInputs] = useState<Record<string, { contribution: string, totalValue: string }>>({});
   const [assetBaselines, setAssetBaselines] = useState<Record<string, number>>({});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [isDeletingPlan, setIsDeletingPlan] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [chartRange, setChartRange] = useState<[number, number]>([10, 10]);
 
@@ -464,7 +465,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
   }
 
   async function deleteProgress(progressId: string) {
-    if (!confirm("Are you sure?")) return;
+    if (!confirm(p.deleteProgressConfirm)) return;
     try {
       await fetch(`/api/plans/${planId}/progress/${progressId}`, {
         method: "DELETE",
@@ -472,6 +473,22 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
       void loadData();
     } catch (e) {
       console.error("Failed to delete", e);
+    }
+  }
+
+  async function deletePlan() {
+    if (!confirm(p.deletePlanConfirm)) return;
+
+    setIsDeletingPlan(true);
+    try {
+      const res = await fetch(`/api/plans/${planId}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push(plansHref);
+      }
+    } catch (e) {
+      console.error("Failed to delete plan", e);
+    } finally {
+      setIsDeletingPlan(false);
     }
   }
 
@@ -668,6 +685,18 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
             )}
           </CardContent>
         </Card>
+
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            disabled={isDeletingPlan}
+            onClick={() => void deletePlan()}
+            className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
+          >
+            <Trash2 className="me-2 size-4" />
+            {p.deletePlan}
+          </Button>
+        </div>
       </div>
 
       {!isTelegram && (

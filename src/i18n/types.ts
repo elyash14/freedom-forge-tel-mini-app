@@ -63,6 +63,8 @@ export type Dictionary = {
     colEnd: string;
     historyTitle: string;
     noHistory: string;
+    deletePlan: string;
+    deletePlanConfirm: string;
   };
   validation: {
     expenseRequired: string;
@@ -133,6 +135,9 @@ export type Dictionary = {
     colPlannedContribution: string;
     colPlannedCapital: string;
     delete: string;
+    deletePlan: string;
+    deletePlanConfirm: string;
+    deleteProgressConfirm: string;
     toman: string;
     yearsUnit: string;
     chartRangeLabel: string;

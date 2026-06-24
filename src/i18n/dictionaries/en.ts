@@ -74,6 +74,8 @@ export const en = {
     colEnd: "Ending capital",
     historyTitle: "Saved plans",
     noHistory: "No saved plans yet.",
+    deletePlan: "Delete plan",
+    deletePlanConfirm: "Are you sure you want to delete this plan?",
   },
   validation: {
     expenseRequired: "Monthly expense must be greater than zero.",
@@ -146,6 +148,9 @@ export const en = {
     colPlannedContribution: "Planned monthly deposit",
     colPlannedCapital: "Planned portfolio value",
     delete: "Delete",
+    deletePlan: "Delete plan",
+    deletePlanConfirm: "Are you sure you want to delete this plan?",
+    deleteProgressConfirm: "Are you sure you want to delete this progress record?",
     toman: "Toman",
     yearsUnit: "years",
     chartRangeLabel: "Chart Time Range (Years)",

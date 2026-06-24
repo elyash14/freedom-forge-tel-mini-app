@@ -74,6 +74,8 @@ export const fa = {
     colEnd: "سرمایه پایان سال",
     historyTitle: "طرح‌های ذخیره‌شده",
     noHistory: "هنوز طرحی ذخیره نشده.",
+    deletePlan: "حذف طرح",
+    deletePlanConfirm: "آیا از حذف این طرح مطمئن هستید؟",
   },
   validation: {
     expenseRequired: "هزینه ماهانه باید بیشتر از صفر باشد.",
@@ -146,6 +148,9 @@ export const fa = {
     colPlannedContribution: "واریز ماهیانه",
     colPlannedCapital: "سرمایه بر اساس تاریخچه سبد",
     delete: "حذف",
+    deletePlan: "حذف طرح",
+    deletePlanConfirm: "آیا از حذف این طرح مطمئن هستید؟",
+    deleteProgressConfirm: "آیا از حذف این رکورد پیشرفت مطمئن هستید؟",
     toman: "تومان",
     yearsUnit: "سال",
     chartRangeLabel: "بازه زمانی نمودار (سال)",
