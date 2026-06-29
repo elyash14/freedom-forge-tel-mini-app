@@ -18,7 +18,6 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { useTelegram } from "@/components/telegram/telegram-provider";
 import { useTelegramBackButton } from "@/components/telegram/use-telegram-back-button";
-import { useTelegramMainButton } from "@/components/telegram/use-telegram-main-button";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -310,28 +309,6 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
 
   const canSaveProgress = totalContribution !== 0 || totalValue !== 0;
 
-  useTelegramMainButton({
-    visible: isTelegram,
-    text: isDrawerOpen
-      ? saveState === "saving"
-        ? p.saving
-        : saveState === "saved"
-          ? p.saved
-          : p.saveProgress
-      : p.addProgressTitle,
-    disabled: isDrawerOpen
-      ? !canSaveProgress || saveState === "saving"
-      : false,
-    loading: isDrawerOpen && saveState === "saving",
-    onClick: () => {
-      if (isDrawerOpen) {
-        void saveProgress();
-        return;
-      }
-      setIsDrawerOpen(true);
-    },
-  });
-
   const expectedInflation = useMemo(
     () => calculateExpectedInflation(historicalData),
     [historicalData],
@@ -524,7 +501,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
   }
 
   return (
-    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-8 pb-24">
+    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-8 pb-[calc(8rem+env(safe-area-inset-bottom))]">
       <header className="space-y-4">
         <h1 className="text-3xl font-bold tracking-tight">{p.title}</h1>
         {!isTelegram && (
@@ -584,51 +561,94 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
               />
             </div>
             
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis 
-                  dataKey="label" 
-                  tick={{ fontSize: 12 }} 
-                  tickMargin={10} 
-                  stroke="#9ca3af" 
-                />
-                <YAxis
-                  tickFormatter={(val) => formatTomanCompact(val as number, locale)}
-                  width={80}
-                  tick={{ fontSize: 12 }}
-                  stroke="#9ca3af"
-                  orientation={locale === "fa" ? "right" : "left"}
-                />
-                <Tooltip
-                  formatter={(value: any) => [
-                    `${formatTomanCompact(Number(value), locale)} ${p.toman}`,
-                    "",
-                  ]}
-                  contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="planned"
-                  name={p.chartPlanned}
-                  stroke="#94a3b8"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="actual"
-                  name={p.chartActual}
-                  stroke="#10b981"
-                  strokeWidth={3}
-                  dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="relative -mx-6 h-80 min-w-0 w-auto px-1 sm:mx-0 sm:w-full sm:px-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <LineChart
+                  data={chartData}
+                  margin={{
+                    top: 12,
+                    right: locale === "fa" ? 4 : 8,
+                    left: locale === "fa" ? 8 : 4,
+                    bottom: 4,
+                  }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="var(--tg-theme-secondary-bg-color, #e5e7eb)"
+                  />
+                  <XAxis
+                    dataKey="time"
+                    type="number"
+                    domain={["dataMin", "dataMax"]}
+                    allowDecimals={false}
+                    ticks={chartData.map((point) => point.time)}
+                    tickFormatter={(time) => {
+                      const point = chartData.find((item) => item.time === time);
+                      return point?.label ?? String(time);
+                    }}
+                    padding={{ left: 0, right: 0 }}
+                    tick={{ fontSize: 11 }}
+                    tickMargin={8}
+                    stroke="var(--tg-theme-hint-color, #9ca3af)"
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(val) => formatTomanCompact(val as number, locale)}
+                    width={locale === "fa" ? 56 : 64}
+                    tick={{ fontSize: 11 }}
+                    tickMargin={4}
+                    stroke="var(--tg-theme-hint-color, #9ca3af)"
+                    orientation={locale === "fa" ? "right" : "left"}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    labelFormatter={(time) => {
+                      const point = chartData.find((item) => item.time === time);
+                      return point?.label ?? String(time);
+                    }}
+                    formatter={(value) => [
+                      `${formatTomanCompact(Number(value ?? 0), locale)} ${p.toman}`,
+                      "",
+                    ]}
+                    contentStyle={{
+                      borderRadius: "10px",
+                      border:
+                        "1px solid var(--tg-theme-secondary-bg-color, #e5e7eb)",
+                      background: "var(--tg-theme-section-bg-color, #fff)",
+                      color: "var(--tg-theme-text-color, #111)",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Legend
+                    iconType="line"
+                    iconSize={14}
+                    wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="planned"
+                    name={p.chartPlanned}
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    connectNulls
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="actual"
+                    name={p.chartActual}
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
+                    activeDot={{ r: 6 }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
@@ -722,26 +742,36 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
         </div>
       </div>
 
-      {!isTelegram && (
-        <>
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/80 p-4 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/80 sm:hidden">
-            <Button className="h-12 w-full rounded-full" onClick={() => setIsDrawerOpen(true)}>
-              <Plus className="me-2 h-5 w-5" />
-              {p.addProgressTitle}
-            </Button>
-          </div>
+      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-bg-color,var(--background))] p-3 sm:hidden">
+        {isDrawerOpen ? (
+          <Button
+            className="h-12 w-full"
+            disabled={!canSaveProgress || saveState === "saving"}
+            onClick={() => void saveProgress()}
+          >
+            {saveState === "saving"
+              ? p.saving
+              : saveState === "saved"
+                ? p.saved
+                : p.saveProgress}
+          </Button>
+        ) : (
+          <Button className="h-12 w-full" onClick={() => setIsDrawerOpen(true)}>
+            <Plus className="me-2 h-5 w-5" />
+            {p.addProgressTitle}
+          </Button>
+        )}
+      </div>
 
-          <div className="hidden sm:block">
-            <Button
-              className="fixed bottom-8 right-8 z-40 h-14 rounded-full px-6 shadow-lg hover:shadow-xl dark:shadow-zinc-900/50"
-              onClick={() => setIsDrawerOpen(true)}
-            >
-              <Plus className="me-2 h-5 w-5" />
-              {p.addProgressTitle}
-            </Button>
-          </div>
-        </>
-      )}
+      <div className="hidden sm:block">
+        <Button
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] end-8 z-40 h-14 rounded-full px-6 shadow-lg hover:shadow-xl dark:shadow-zinc-900/50"
+          onClick={() => setIsDrawerOpen(true)}
+        >
+          <Plus className="me-2 h-5 w-5" />
+          {p.addProgressTitle}
+        </Button>
+      </div>
 
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <DrawerContent className="mx-auto max-h-[90vh] sm:max-w-lg">
@@ -818,7 +848,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
               </div>
 
               <Button
-                className={cn("h-12 w-full", isTelegram && "hidden")}
+                className="hidden h-12 w-full sm:flex"
                 disabled={
                   totalContribution === 0 && totalValue === 0 || saveState === "saving"
                 }

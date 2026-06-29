@@ -1,21 +1,17 @@
-import { FreedomCalculator } from "@/components/freedom-calculator/FreedomCalculator";
-import { type Locale, locales } from "@/i18n/config";
-import { getDictionary } from "@/i18n/get-dictionary";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
-type HomePageProps = {
+import { type Locale, locales } from "@/i18n/config";
+
+type LocaleIndexPageProps = {
   params: Promise<{ locale: string }>;
 };
 
-export default async function HomePage({ params }: HomePageProps) {
+export default async function LocaleIndexPage({ params }: LocaleIndexPageProps) {
   const { locale } = await params;
 
   if (!locales.includes(locale as Locale)) {
-    notFound();
+    redirect("/fa/home");
   }
 
-  const typedLocale = locale as Locale;
-  const dictionary = await getDictionary(typedLocale);
-
-  return <FreedomCalculator locale={typedLocale} dictionary={dictionary} />;
+  redirect(`/${locale}/home`);
 }

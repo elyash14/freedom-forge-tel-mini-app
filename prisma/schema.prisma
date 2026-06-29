@@ -40,15 +40,17 @@ model AssetClass {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  telegramId   BigInt        @unique
-  username     String?
-  firstName    String?
-  lastName     String?
-  locale       String        @default("fa")
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  freedomPlans    FreedomPlan[]
+  id               String            @id @default(cuid())
+  telegramId       BigInt            @unique
+  username         String?
+  firstName        String?
+  lastName         String?
+  locale           String            @default("fa")
+  selectedPlanId   String?
+  selectedPlan     FreedomPlan?      @relation("SelectedPlan", fields: [selectedPlanId], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  freedomPlans     FreedomPlan[]     @relation("UserPlans")
   customPortfolios CustomPortfolio[]
 }
 
@@ -66,14 +68,14 @@ model CustomPortfolio {
 }
 
 model FreedomPlan {
-  id                  String   @id @default(cuid())
+  id                  String         @id @default(cuid())
   userId              String?
-  user                User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user                User?          @relation("UserPlans", fields: [userId], references: [id], onDelete: SetNull)
   sessionId           String         @default("")
-  locale              String   @default("fa")
+  locale              String         @default("fa")
   monthlyExpense      Float
   initialCapital      Float
-  assetCapitals       Json     @default("{}")
+  assetCapitals       Json           @default("{}")
   portfolioAllocation Json
   nominalReturnRate   Float
   realReturnRate      Float
@@ -83,6 +85,7 @@ model FreedomPlan {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   progressRecords     PlanProgress[]
+  selectedByUsers     User[]         @relation("SelectedPlan")
 
   @@index([sessionId])
   @@index([userId])

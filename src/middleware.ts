@@ -21,7 +21,7 @@ export function middleware(request: NextRequest) {
   const locale =
     cookieLocale && isLocale(cookieLocale) ? cookieLocale : defaultLocale;
 
-  request.nextUrl.pathname = `/${locale}${pathname === "/" ? "" : pathname}`;
+  request.nextUrl.pathname = `/${locale}${pathname === "/" ? "/home" : pathname}`;
   return NextResponse.redirect(request.nextUrl);
 }
 

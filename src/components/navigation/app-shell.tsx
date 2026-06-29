@@ -11,6 +11,7 @@ import { ScrollableMain } from "./scrollable-main";
 type AppShellProps = {
   locale: Locale;
   navLabels: {
+    home: string;
     calculator: string;
     plans: string;
     settings: string;
@@ -19,10 +20,7 @@ type AppShellProps = {
 };
 
 function shouldHideBottomNav(pathname: string, locale: Locale) {
-  if (pathname.includes("/telegram-gate")) return true;
-
-  const planDetailPattern = new RegExp(`^/${locale}/plans/[^/]+$`);
-  return planDetailPattern.test(pathname);
+  return pathname.includes("/telegram-gate");
 }
 
 export function AppShell({ locale, navLabels, children }: AppShellProps) {

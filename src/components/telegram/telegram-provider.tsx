@@ -23,6 +23,7 @@ import {
 
 import type { Locale } from "@/i18n/config";
 import { hideTelegramMainButton } from "@/lib/telegram/main-button";
+import { ColorSchemeSync } from "@/components/telegram/color-scheme-sync";
 
 type TelegramContextValue = {
   isTelegram: boolean;
@@ -84,10 +85,13 @@ export function TelegramProvider({
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isTelegram, setIsTelegram] = useState(false);
+  const [isTelegram, setIsTelegram] = useState(
+    () => typeof window !== "undefined" && isInsideTelegram(),
+  );
   const [bootError, setBootError] = useState<string | null>(null);
 
   const isGatePage = pathname.includes("/telegram-gate");
+  const useTelegramTheme = isTelegram && !isGatePage;
 
   const boot = useCallback(async () => {
     if (isGatePage) {
@@ -167,33 +171,40 @@ export function TelegramProvider({
 
   if (!isReady && !isGatePage) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center p-8 text-sm text-[var(--tg-theme-text-color,var(--foreground))]">
-        {loadingText}
-      </div>
+      <>
+        <ColorSchemeSync useTelegramTheme={useTelegramTheme} />
+        <div className="flex min-h-screen w-full items-center justify-center p-8 text-sm text-[var(--tg-theme-text-color,var(--foreground))]">
+          {loadingText}
+        </div>
+      </>
     );
   }
 
   if (bootError && !isAuthenticated) {
     return (
-      <div className="flex min-h-screen w-full flex-col items-center justify-center gap-3 p-8 text-center text-sm text-[var(--tg-theme-text-color,var(--foreground))]">
-        <p>{bootError}</p>
-        <button
-          type="button"
-          className="rounded-xl bg-[var(--tg-theme-button-color,var(--primary))] px-4 py-2 text-[var(--tg-theme-button-text-color,var(--primary-foreground))]"
-          onClick={() => {
-            setBootError(null);
-            setIsReady(false);
-            void boot();
-          }}
-        >
-          Retry
-        </button>
-      </div>
+      <>
+        <ColorSchemeSync useTelegramTheme={useTelegramTheme} />
+        <div className="flex min-h-screen w-full flex-col items-center justify-center gap-3 p-8 text-center text-sm text-[var(--tg-theme-text-color,var(--foreground))]">
+          <p>{bootError}</p>
+          <button
+            type="button"
+            className="rounded-xl bg-[var(--tg-theme-button-color,var(--primary))] px-4 py-2 text-[var(--tg-theme-button-text-color,var(--primary-foreground))]"
+            onClick={() => {
+              setBootError(null);
+              setIsReady(false);
+              void boot();
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </>
     );
   }
 
   return (
     <TelegramContext.Provider value={value}>
+      <ColorSchemeSync useTelegramTheme={useTelegramTheme} />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         {children}
       </div>

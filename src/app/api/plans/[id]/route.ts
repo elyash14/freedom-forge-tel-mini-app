@@ -43,9 +43,15 @@ export async function DELETE(
   }
 
   try {
-    await prisma.freedomPlan.delete({
-      where: { id },
-    });
+    await prisma.$transaction([
+      prisma.user.updateMany({
+        where: { selectedPlanId: id },
+        data: { selectedPlanId: null },
+      }),
+      prisma.freedomPlan.delete({
+        where: { id },
+      }),
+    ]);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(

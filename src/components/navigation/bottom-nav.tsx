@@ -7,7 +7,7 @@ import {
   hideBackButton,
   isBackButtonMounted,
 } from "@telegram-apps/sdk";
-import { Calculator, List, Settings } from "lucide-react";
+import { Calculator, Home, List, Settings } from "lucide-react";
 
 import { useTelegram } from "@/components/telegram/telegram-provider";
 import type { Locale } from "@/i18n/config";
@@ -15,6 +15,7 @@ import { hideTelegramMainButton } from "@/lib/telegram/main-button";
 import { cn } from "@/lib/utils";
 
 type BottomNavLabels = {
+  home: string;
   calculator: string;
   plans: string;
   settings: string;
@@ -26,7 +27,8 @@ type BottomNavProps = {
 };
 
 const tabs = [
-  { id: "calculator", href: "", icon: Calculator },
+  { id: "home", href: "/home", icon: Home },
+  { id: "calculator", href: "/calculator", icon: Calculator },
   { id: "plans", href: "/plans", icon: List },
   { id: "settings", href: "/settings", icon: Settings },
 ] as const;
@@ -34,6 +36,7 @@ const tabs = [
 export function BottomNav({ locale, labels }: BottomNavProps) {
   const pathname = usePathname();
   const labelMap = {
+    home: labels.home,
     calculator: labels.calculator,
     plans: labels.plans,
     settings: labels.settings,
@@ -41,9 +44,6 @@ export function BottomNav({ locale, labels }: BottomNavProps) {
 
   function isActive(href: string) {
     const base = `/${locale}${href}`;
-    if (href === "") {
-      return pathname === `/${locale}` || pathname === `/${locale}/`;
-    }
     return pathname === base || pathname.startsWith(`${base}/`);
   }
 
@@ -52,7 +52,7 @@ export function BottomNav({ locale, labels }: BottomNavProps) {
       className="shrink-0 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-bg-color,var(--background))] pb-[env(safe-area-inset-bottom)]"
       aria-label="Main navigation"
     >
-      <div className="mx-auto grid h-16 max-w-2xl grid-cols-3">
+      <div className="mx-auto grid h-16 max-w-2xl grid-cols-4">
         {tabs.map((tab) => {
           const href = `/${locale}${tab.href}`;
           const active = isActive(tab.href);

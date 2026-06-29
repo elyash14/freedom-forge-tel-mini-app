@@ -92,6 +92,7 @@ export default async function LocaleLayout({
           <AppShell
             locale={typedLocale}
             navLabels={{
+              home: dictionary.nav.home,
               calculator: dictionary.nav.calculator,
               plans: dictionary.nav.plans,
               settings: dictionary.nav.settings,

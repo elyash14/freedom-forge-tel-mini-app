@@ -9,7 +9,7 @@ export function getTelegramBot(): Bot {
     botInstance = new Bot(getTelegramBotToken());
 
     botInstance.command("start", async (ctx) => {
-      const webAppUrl = `${getWebAppUrl().replace(/\/$/, "")}/fa`;
+      const webAppUrl = `${getWebAppUrl().replace(/\/$/, "")}/fa/home`;
       const keyboard = new InlineKeyboard().webApp("باز کردن اپ", webAppUrl);
 
       await ctx.reply(
