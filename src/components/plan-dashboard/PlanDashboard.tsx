@@ -35,8 +35,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericInput } from "@/components/ui/numeric-input";
 import type { Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/get-dictionary";
 import type { Dictionary } from "@/i18n/types";
@@ -51,6 +51,8 @@ import {
   type HistoricalReturnRow,
 } from "@/lib/historical-returns";
 import { cn } from "@/lib/utils";
+import { customPortfolioKey } from "@/lib/custom-portfolios";
+import { parseLocalizedNumber } from "@/lib/numeric-input";
 
 type FreedomPlanDto = {
   id: string;
@@ -199,11 +201,13 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
 
   const loadData = useCallback(async () => {
     try {
-      const [planRes, progressRes, historicalRes, assetClassesRes] = await Promise.all([
+      const [planRes, progressRes, historicalRes, assetClassesRes, customRes] =
+        await Promise.all([
         fetch(`/api/plans/${planId}`),
         fetch(`/api/plans/${planId}/progress`),
         fetch(`/api/historical-returns`),
         fetch(`/api/asset-classes`),
+        fetch(`/api/custom-portfolios`),
       ]);
 
       if (planRes.ok) {
@@ -218,18 +222,31 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
         const data = await historicalRes.json();
         setHistoricalData(data);
       }
+      const lookup: Record<string, string> = {};
+
       if (assetClassesRes.ok) {
         const data = await assetClassesRes.json();
-        const lookup: Record<string, string> = {};
-        data.forEach((a: any) => {
+        data.forEach((a: { key: string; labelFa: string; labelEn: string }) => {
           lookup[a.key] = locale === "fa" ? a.labelFa : a.labelEn;
         });
+      }
+
+      if (customRes.ok) {
+        const data = (await customRes.json()) as {
+          portfolios: { id: string; name: string }[];
+        };
+        for (const portfolio of data.portfolios) {
+          lookup[customPortfolioKey(portfolio.id)] = portfolio.name;
+        }
+      }
+
+      if (assetClassesRes.ok || customRes.ok) {
         setAssetClasses(lookup);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [planId]);
+  }, [planId, locale]);
 
   useEffect(() => {
     void loadData();
@@ -241,16 +258,16 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
     const defaults = buildAssetInputDefaults(
       plan,
       progress,
-      Number(inputYear) || 1,
-      Number(inputMonth) || 1,
+      parseLocalizedNumber(inputYear) ?? 1,
+      parseLocalizedNumber(inputMonth) ?? 1,
     );
 
     setAssetInputs(defaults);
 
     const baselines: Record<string, number> = {};
     for (const [key, value] of Object.entries(defaults)) {
-      const total = Number(value.totalValue.replace(/,/g, "")) || 0;
-      const contribution = Number(value.contribution.replace(/,/g, "")) || 0;
+      const total = parseLocalizedNumber(value.totalValue) ?? 0;
+      const contribution = parseLocalizedNumber(value.contribution) ?? 0;
       baselines[key] = total - contribution;
     }
     setAssetBaselines(baselines);
@@ -278,11 +295,17 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
   }, [plan]);
 
   const totalContribution = useMemo(() => {
-    return Object.values(assetInputs).reduce((sum, val) => sum + (Number(val.contribution?.replace(/,/g, '')) || 0), 0);
+    return Object.values(assetInputs).reduce(
+      (sum, val) => sum + (parseLocalizedNumber(val.contribution ?? "") ?? 0),
+      0,
+    );
   }, [assetInputs]);
 
   const totalValue = useMemo(() => {
-    return Object.values(assetInputs).reduce((sum, val) => sum + (Number(val.totalValue?.replace(/,/g, '')) || 0), 0);
+    return Object.values(assetInputs).reduce(
+      (sum, val) => sum + (parseLocalizedNumber(val.totalValue ?? "") ?? 0),
+      0,
+    );
   }, [assetInputs]);
 
   const canSaveProgress = totalContribution !== 0 || totalValue !== 0;
@@ -383,7 +406,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
   }, [plan, projectionRows, progress, maxYear, chartRange]);
 
   function parseAssetInputNumber(value: string): number {
-    return Number(value.replace(/,/g, "")) || 0;
+    return parseLocalizedNumber(value) ?? 0;
   }
 
   function updateAssetInput(assetKey: string, field: "contribution" | "totalValue", value: string) {
@@ -432,8 +455,8 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
       const assetDetails: Record<string, { contribution: number; totalValue: number }> = {};
       Object.keys(assetInputs).forEach(key => {
         assetDetails[key] = {
-          contribution: Number(assetInputs[key]?.contribution?.replace(/,/g, "")) || 0,
-          totalValue: Number(assetInputs[key]?.totalValue?.replace(/,/g, "")) || 0,
+          contribution: parseLocalizedNumber(assetInputs[key]?.contribution ?? "") ?? 0,
+          totalValue: parseLocalizedNumber(assetInputs[key]?.totalValue ?? "") ?? 0,
         };
       });
 
@@ -441,8 +464,8 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          year: parseInt(inputYear),
-          month: parseInt(inputMonth),
+          year: parseLocalizedNumber(inputYear) ?? 1,
+          month: parseLocalizedNumber(inputMonth) ?? 1,
           contribution: totalContribution,
           totalValue: totalValue,
           assetDetails,
@@ -731,21 +754,20 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>{p.yearLabel}</Label>
-                  <Input
-                    type="number"
-                    min={1}
+                  <NumericInput
+                    locale={locale}
+                    kind="integer"
                     value={inputYear}
-                    onChange={(e) => setInputYear(e.target.value)}
+                    onChange={setInputYear}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>{p.monthLabel}</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={12}
+                  <NumericInput
+                    locale={locale}
+                    kind="integer"
                     value={inputMonth}
-                    onChange={(e) => setInputMonth(e.target.value)}
+                    onChange={setInputMonth}
                   />
                 </div>
               </div>
@@ -760,20 +782,22 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-zinc-500">{p.contributionLabel}</Label>
-                          <Input
-                            inputMode="numeric"
+                          <NumericInput
+                            locale={locale}
+                            unitLabel={p.toman}
                             placeholder="0"
                             value={vals.contribution || ""}
-                            onChange={e => updateAssetInput(assetKey, "contribution", e.target.value)}
+                            onChange={(value) => updateAssetInput(assetKey, "contribution", value)}
                           />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-zinc-500">{p.totalValueLabel}</Label>
-                          <Input
-                            inputMode="numeric"
+                          <NumericInput
+                            locale={locale}
+                            unitLabel={p.toman}
                             placeholder="0"
                             value={vals.totalValue || ""}
-                            onChange={e => updateAssetInput(assetKey, "totalValue", e.target.value)}
+                            onChange={(value) => updateAssetInput(assetKey, "totalValue", value)}
                           />
                         </div>
                       </div>

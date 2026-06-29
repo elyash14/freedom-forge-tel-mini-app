@@ -1,15 +1,24 @@
 "use client";
 
+import { Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useTelegram } from "@/components/telegram/telegram-provider";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import { formatHistoricalYear } from "@/lib/freedom-format";
+import type { CustomPortfolioDto } from "@/lib/custom-portfolios";
+import {
+  normalizeNumericString,
+  parseLocalizedNumber,
+} from "@/lib/numeric-input";
 import {
   ASSET_KEY_TO_HISTORICAL_COLUMN,
   type HistoricalReturnAssetColumn,
@@ -24,7 +33,7 @@ type AssetClassDto = {
   labelEn: string;
 };
 
-type MainSettingsTab = "assets" | "historical";
+type MainSettingsTab = "assets" | "historical" | "custom";
 type HistoricalDataTab = "inflation" | PortfolioAssetKey;
 
 type SettingsPageProps = {
@@ -60,9 +69,9 @@ function percentInputToDecimal(value: string): number | null {
     return null;
   }
 
-  const parsed = Number(trimmed.replace(/,/g, ""));
+  const parsed = parseLocalizedNumber(trimmed);
 
-  if (!Number.isFinite(parsed)) {
+  if (parsed == null) {
     return null;
   }
 
@@ -70,7 +79,7 @@ function percentInputToDecimal(value: string): number | null {
 }
 
 function isPartialPercentInput(value: string): boolean {
-  return /^-?$|^-?\d*\.?\d*$/.test(value.trim());
+  return /^-?$|^-?\d*\.?\d*$/.test(normalizeNumericString(value.trim()));
 }
 
 function historicalInputKey(
@@ -82,7 +91,17 @@ function historicalInputKey(
 
 export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
   const s = dictionary.settings;
+  const { isAuthenticated } = useTelegram();
   const [assetClasses, setAssetClasses] = useState<AssetClassDto[]>([]);
+  const [customPortfolios, setCustomPortfolios] = useState<CustomPortfolioDto[]>(
+    [],
+  );
+  const [newPortfolioName, setNewPortfolioName] = useState("");
+  const [newPortfolioReturn, setNewPortfolioReturn] = useState("");
+  const [customSaveState, setCustomSaveState] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
+  const [customSaveError, setCustomSaveError] = useState<string | null>(null);
   const [historicalReturns, setHistoricalReturns] = useState<
     HistoricalReturnRow[]
   >([]);
@@ -106,10 +125,16 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
   const loadSettings = useCallback(async () => {
     try {
-      const [assetsRes, historicalRes] = await Promise.all([
+      const requests: Promise<Response>[] = [
         fetch("/api/asset-classes"),
         fetch("/api/historical-returns"),
-      ]);
+      ];
+
+      if (isAuthenticated) {
+        requests.push(fetch("/api/custom-portfolios"));
+      }
+
+      const [assetsRes, historicalRes, customRes] = await Promise.all(requests);
 
       if (!assetsRes.ok || !historicalRes.ok) {
         throw new Error("load failed");
@@ -119,13 +144,23 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
       setHistoricalReturns(
         (await historicalRes.json()) as HistoricalReturnRow[],
       );
+
+      if (customRes?.ok) {
+        const data = (await customRes.json()) as {
+          portfolios: CustomPortfolioDto[];
+        };
+        setCustomPortfolios(data.portfolios);
+      } else {
+        setCustomPortfolios([]);
+      }
+
       setLoadError(null);
     } catch {
       setLoadError(s.loadError);
     } finally {
       setIsLoading(false);
     }
-  }, [s.loadError]);
+  }, [isAuthenticated, s.loadError]);
 
   useEffect(() => {
     void loadSettings();
@@ -231,6 +266,157 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     return "";
   }
 
+  function updateCustomPortfolio(
+    id: string,
+    field: "name" | "annualReturnRate",
+    value: string,
+  ) {
+    setCustomPortfolios((items) =>
+      items.map((item) => {
+        if (item.id !== id) {
+          return item;
+        }
+
+        if (field === "name") {
+          return { ...item, name: value };
+        }
+
+        const decimal = percentInputToDecimal(value);
+
+        if (decimal == null) {
+          return item;
+        }
+
+        return { ...item, annualReturnRate: decimal };
+      }),
+    );
+  }
+
+  function getCustomPortfolioReturnInput(portfolio: CustomPortfolioDto): string {
+    const key = `custom:${portfolio.id}`;
+    if (key in pendingInputs) {
+      return pendingInputs[key];
+    }
+
+    return decimalToPercentInput(portfolio.annualReturnRate);
+  }
+
+  function updateCustomPortfolioReturn(id: string, rawValue: string) {
+    setPendingInputs((pending) => ({ ...pending, [`custom:${id}`]: rawValue }));
+    updateCustomPortfolio(id, "annualReturnRate", rawValue);
+  }
+
+  function commitCustomPortfolioReturn(id: string, rawValue: string) {
+    setPendingInputs((pending) => {
+      const next = { ...pending };
+      delete next[`custom:${id}`];
+      return next;
+    });
+
+    const decimal = percentInputToDecimal(rawValue);
+    if (decimal == null) {
+      return;
+    }
+
+    setCustomPortfolios((items) =>
+      items.map((item) =>
+        item.id === id ? { ...item, annualReturnRate: decimal } : item,
+      ),
+    );
+  }
+
+  async function saveCustomPortfolios() {
+    setCustomSaveState("saving");
+    setCustomSaveError(null);
+
+    try {
+      const responses = await Promise.all(
+        customPortfolios.map((portfolio) =>
+          fetch(`/api/custom-portfolios/${portfolio.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: portfolio.name.trim(),
+              annualReturnRate: portfolio.annualReturnRate,
+            }),
+          }),
+        ),
+      );
+
+      if (responses.some((response) => !response.ok)) {
+        throw new Error("save failed");
+      }
+
+      const listRes = await fetch("/api/custom-portfolios");
+      if (listRes.ok) {
+        const data = (await listRes.json()) as {
+          portfolios: CustomPortfolioDto[];
+        };
+        setCustomPortfolios(data.portfolios);
+      }
+
+      setPendingInputs({});
+      setCustomSaveState("saved");
+      setTimeout(() => setCustomSaveState("idle"), 2000);
+    } catch {
+      setCustomSaveError(s.saveError);
+      setCustomSaveState("idle");
+    }
+  }
+
+  async function addCustomPortfolio() {
+    const name = newPortfolioName.trim();
+    const annualReturnRate = percentInputToDecimal(newPortfolioReturn);
+
+    if (!name || annualReturnRate == null) {
+      return;
+    }
+
+    setCustomSaveState("saving");
+    setCustomSaveError(null);
+
+    try {
+      const res = await fetch("/api/custom-portfolios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, annualReturnRate }),
+      });
+
+      if (!res.ok) {
+        throw new Error("create failed");
+      }
+
+      const data = (await res.json()) as { portfolio: CustomPortfolioDto };
+      setCustomPortfolios((items) => [...items, data.portfolio]);
+      setNewPortfolioName("");
+      setNewPortfolioReturn("");
+      setCustomSaveState("idle");
+    } catch {
+      setCustomSaveError(s.saveError);
+      setCustomSaveState("idle");
+    }
+  }
+
+  async function deleteCustomPortfolio(id: string) {
+    if (!confirm(s.deleteCustomPortfolioConfirm)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/custom-portfolios/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("delete failed");
+      }
+
+      setCustomPortfolios((items) => items.filter((item) => item.id !== id));
+    } catch {
+      setCustomSaveError(s.saveError);
+    }
+  }
+
   async function saveSettings() {
     setSaveState("saving");
     setSaveError(null);
@@ -291,16 +477,17 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                   </span>
                 </td>
                 <td className="px-3 py-2">
-                  <Input
-                    inputMode="decimal"
-                    className="h-9 max-w-[160px] tabular-nums"
+                  <NumericInput
+                    locale={locale}
+                    kind="percent"
+                    className="h-9 max-w-[160px]"
                     placeholder={nullable ? s.emptyValue : "0"}
                     value={getHistoricalFieldValue(row, field)}
-                    onChange={(e) =>
+                    onChange={(value) =>
                       updateHistoricalField(
                         row.year,
                         field,
-                        e.target.value,
+                        value,
                         nullable,
                       )
                     }
@@ -350,7 +537,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
           >
             <TabsList
               aria-label={s.title}
-              className="mb-6 grid w-full grid-cols-2 gap-1 p-1.5"
+              className="mb-6 grid w-full grid-cols-3 gap-1 p-1.5"
             >
               <TabsTrigger
                 value="assets"
@@ -363,6 +550,12 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                 className="py-2.5 text-sm sm:text-base"
               >
                 {s.mainTabHistoricalData}
+              </TabsTrigger>
+              <TabsTrigger
+                value="custom"
+                className="py-2.5 text-sm sm:text-base"
+              >
+                {s.mainTabCustomPortfolios}
               </TabsTrigger>
             </TabsList>
 
@@ -462,22 +655,157 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                 </Tabs>
               </div>
             </TabsContent>
+
+            <TabsContent value="custom" className="space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold">{s.customPortfoliosSection}</h2>
+                <p className="text-sm text-zinc-500">{s.customPortfoliosHint}</p>
+              </div>
+
+              {!isAuthenticated ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                  {s.customPortfoliosAuthRequired}
+                </p>
+              ) : (
+                <>
+                  {customSaveError && (
+                    <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+                      {customSaveError}
+                    </p>
+                  )}
+
+                  {customPortfolios.length === 0 ? (
+                    <p className="text-sm text-zinc-500">{s.customPortfoliosEmpty}</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {customPortfolios.map((portfolio) => (
+                        <div
+                          key={portfolio.id}
+                          className="space-y-3 rounded-lg border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-secondary-bg-color,var(--muted))] p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="grid flex-1 gap-3 sm:grid-cols-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">{s.customPortfolioName}</Label>
+                                <Input
+                                  value={portfolio.name}
+                                  onChange={(e) =>
+                                    updateCustomPortfolio(
+                                      portfolio.id,
+                                      "name",
+                                      e.target.value,
+                                    )
+                                  }
+                                  disabled={isLoading}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">{s.customPortfolioReturn}</Label>
+                                <NumericInput
+                                  locale={locale}
+                                  kind="percent"
+                                  value={getCustomPortfolioReturnInput(portfolio)}
+                                  onChange={(value) =>
+                                    updateCustomPortfolioReturn(portfolio.id, value)
+                                  }
+                                  onBlur={(e) =>
+                                    commitCustomPortfolioReturn(
+                                      portfolio.id,
+                                      e.target.value,
+                                    )
+                                  }
+                                  disabled={isLoading}
+                                />
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              aria-label={s.deleteCustomPortfolio}
+                              onClick={() => void deleteCustomPortfolio(portfolio.id)}
+                              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-zinc-200 p-2 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-3 rounded-lg border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+                    <p className="text-xs text-zinc-500">{s.customPortfolioReturnHint}</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">{s.customPortfolioName}</Label>
+                        <Input
+                          value={newPortfolioName}
+                          onChange={(e) => setNewPortfolioName(e.target.value)}
+                          disabled={isLoading || customSaveState === "saving"}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{s.customPortfolioReturn}</Label>
+                        <NumericInput
+                          locale={locale}
+                          kind="percent"
+                          value={newPortfolioReturn}
+                          onChange={setNewPortfolioReturn}
+                          disabled={isLoading || customSaveState === "saving"}
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      disabled={
+                        isLoading ||
+                        customSaveState === "saving" ||
+                        !newPortfolioName.trim() ||
+                        percentInputToDecimal(newPortfolioReturn) == null
+                      }
+                      onClick={() => void addCustomPortfolio()}
+                    >
+                      <Plus className="me-2 size-4" />
+                      {s.addCustomPortfolio}
+                    </Button>
+                  </div>
+
+                  {customPortfolios.length > 0 && (
+                    <Button
+                      type="button"
+                      className="w-full"
+                      disabled={isLoading || customSaveState === "saving"}
+                      onClick={() => void saveCustomPortfolios()}
+                    >
+                      {customSaveState === "saving"
+                        ? s.saving
+                        : customSaveState === "saved"
+                          ? s.saved
+                          : s.save}
+                    </Button>
+                  )}
+                </>
+              )}
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
 
-      <Button
-        type="button"
-        className="w-full"
-        disabled={isLoading || saveState === "saving"}
-        onClick={() => void saveSettings()}
-      >
-        {saveState === "saving"
-          ? s.saving
-          : saveState === "saved"
-            ? s.saved
-            : s.save}
-      </Button>
+      {mainTab !== "custom" && (
+        <Button
+          type="button"
+          className="w-full"
+          disabled={isLoading || saveState === "saving"}
+          onClick={() => void saveSettings()}
+        >
+          {saveState === "saving"
+            ? s.saving
+            : saveState === "saved"
+              ? s.saved
+              : s.save}
+        </Button>
+      )}
     </div>
   );
 }

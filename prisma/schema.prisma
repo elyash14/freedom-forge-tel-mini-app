@@ -48,7 +48,21 @@ model User {
   locale       String        @default("fa")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  freedomPlans FreedomPlan[]
+  freedomPlans    FreedomPlan[]
+  customPortfolios CustomPortfolio[]
+}
+
+model CustomPortfolio {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  annualReturnRate Float
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model FreedomPlan {

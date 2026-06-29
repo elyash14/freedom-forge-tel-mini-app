@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Slider } from "@/components/ui/slider";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
@@ -30,7 +30,6 @@ import {
   formatInteger,
   formatPercent,
   formatProjectionCalendarYear,
-  formatToman,
   formatTomanCompact,
   formatYears,
 } from "@/lib/freedom-format";
@@ -41,6 +40,12 @@ import {
   calculateInflationDelta,
   type HistoricalReturnRow,
 } from "@/lib/historical-returns";
+import {
+  buildCustomReturnsMap,
+  customPortfolioKey,
+  type CustomPortfolioDto,
+} from "@/lib/custom-portfolios";
+import { parseLocalizedNumber } from "@/lib/numeric-input";
 import { cn } from "@/lib/utils";
 
 type AssetClassDto = {
@@ -48,6 +53,13 @@ type AssetClassDto = {
   key: string;
   labelFa: string;
   labelEn: string;
+};
+
+type PortfolioItem = {
+  key: string;
+  label: string;
+  isCustom: boolean;
+  annualReturnRate?: number;
 };
 
 type CapitalInputMode = "total" | "perAsset";
@@ -77,6 +89,9 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     [],
   );
   const [assetClasses, setAssetClasses] = useState<AssetClassDto[]>([]);
+  const [customPortfolios, setCustomPortfolios] = useState<CustomPortfolioDto[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
@@ -85,17 +100,23 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   const [projectionScenario, setProjectionScenario] =
     useState<ProjectionScenario>("real");
 
-  const initAllocation = useCallback((assets: AssetClassDto[]) => {
-    const even = 100 / assets.length;
-    setAllocation(Object.fromEntries(assets.map((a) => [a.key, even])));
+  const initAllocation = useCallback((keys: string[]) => {
+    if (keys.length === 0) {
+      setAllocation({});
+      return;
+    }
+
+    const even = 100 / keys.length;
+    setAllocation(Object.fromEntries(keys.map((key) => [key, even])));
   }, []);
 
   useEffect(() => {
     async function load() {
       try {
-        const [historicalRes, assetsRes] = await Promise.all([
+        const [historicalRes, assetsRes, customRes] = await Promise.all([
           fetch("/api/historical-returns"),
           fetch("/api/asset-classes"),
+          fetch("/api/custom-portfolios"),
         ]);
 
         if (!historicalRes.ok || !assetsRes.ok) {
@@ -104,10 +125,20 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
 
         const historical = (await historicalRes.json()) as HistoricalReturnRow[];
         const assets = (await assetsRes.json()) as AssetClassDto[];
+        const custom = customRes.ok
+          ? ((await customRes.json()) as { portfolios: CustomPortfolioDto[] })
+              .portfolios
+          : [];
 
         setHistoricalData(historical);
         setAssetClasses(assets);
-        initAllocation(assets);
+        setCustomPortfolios(custom);
+
+        const keys = [
+          ...assets.map((asset) => asset.key),
+          ...custom.map((portfolio) => customPortfolioKey(portfolio.id)),
+        ];
+        initAllocation(keys);
       } catch {
         setLoadError(c.loadError);
       } finally {
@@ -118,9 +149,31 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     void load();
   }, [c.loadError, initAllocation]);
 
+  const portfolioItems = useMemo<PortfolioItem[]>(
+    () => [
+      ...assetClasses.map((asset) => ({
+        key: asset.key,
+        label: assetLabel(asset, locale),
+        isCustom: false,
+      })),
+      ...customPortfolios.map((portfolio) => ({
+        key: customPortfolioKey(portfolio.id),
+        label: portfolio.name,
+        isCustom: true,
+        annualReturnRate: portfolio.annualReturnRate,
+      })),
+    ],
+    [assetClasses, customPortfolios, locale],
+  );
+
   const assetKeys = useMemo(
-    () => assetClasses.map((a) => a.key),
-    [assetClasses],
+    () => portfolioItems.map((item) => item.key),
+    [portfolioItems],
+  );
+
+  const customReturns = useMemo(
+    () => buildCustomReturnsMap(customPortfolios),
+    [customPortfolios],
   );
 
   const normalizedAllocation = useMemo(
@@ -129,33 +182,34 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   );
 
   const allocationTotal = useMemo(
-    () => assetClasses.reduce((sum, a) => sum + (allocation[a.key] ?? 0), 0),
-    [allocation, assetClasses],
+    () => portfolioItems.reduce((sum, item) => sum + (allocation[item.key] ?? 0), 0),
+    [allocation, portfolioItems],
   );
 
   const activeAssets = useMemo(
-    () => assetClasses.filter((asset) => (allocation[asset.key] ?? 0) > 0),
-    [assetClasses, allocation],
+    () => portfolioItems.filter((item) => (allocation[item.key] ?? 0) > 0),
+    [portfolioItems, allocation],
   );
 
   const effectiveInitialCapital = useMemo(() => {
     if (capitalInputMode === "total") {
-      return Number(initialCapital.replace(/,/g, "")) || 0;
+      return parseLocalizedNumber(initialCapital) ?? 0;
     }
 
-    return activeAssets.reduce((sum, asset) => {
-      const value = assetCapitals[asset.key] ?? "";
-      return sum + (Number(value.replace(/,/g, "")) || 0);
+    return activeAssets.reduce((sum, item) => {
+      const value = assetCapitals[item.key] ?? "";
+      return sum + (parseLocalizedNumber(value) ?? 0);
     }, 0);
   }, [capitalInputMode, initialCapital, assetCapitals, activeAssets]);
 
   const parsed = useMemo(
     () => ({
-      monthlyExpense: Number(monthlyExpense) || 0,
+      monthlyExpense: parseLocalizedNumber(monthlyExpense) ?? 0,
       initialCapital: effectiveInitialCapital,
       allocation: normalizedAllocation,
       historicalData,
       monthlyContribution,
+      customReturns,
     }),
     [
       monthlyExpense,
@@ -163,6 +217,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
       normalizedAllocation,
       historicalData,
       monthlyContribution,
+      customReturns,
     ],
   );
 
@@ -171,17 +226,26 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
 
   const nominalPreview = useMemo(
     () =>
-      calculateHistoricalNominalReturn(normalizedAllocation, historicalData),
-    [normalizedAllocation, historicalData],
+      calculateHistoricalNominalReturn(
+        normalizedAllocation,
+        historicalData,
+        customReturns,
+      ),
+    [normalizedAllocation, historicalData, customReturns],
   );
 
   const realPreview = useMemo(
-    () => calculateHistoricalRealReturn(normalizedAllocation, historicalData),
-    [normalizedAllocation, historicalData],
+    () =>
+      calculateHistoricalRealReturn(
+        normalizedAllocation,
+        historicalData,
+        customReturns,
+      ),
+    [normalizedAllocation, historicalData, customReturns],
   );
 
   const pmtMax = useMemo(() => {
-    const expense = Number(monthlyExpense) || 50_000_000;
+    const expense = parseLocalizedNumber(monthlyExpense) ?? 50_000_000;
     return Math.max(expense, 10_000_000);
   }, [monthlyExpense]);
 
@@ -252,8 +316,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   );
 
   function formatProjectionAmount(value: number): string {
-    const formatter = isNominalScenario ? formatTomanCompact : formatToman;
-    return formatter(value, locale);
+    return formatTomanCompact(value, locale);
   }
 
   function projectionHint(): string {
@@ -316,10 +379,9 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     const result: Record<string, number> = {};
 
     if (capitalInputMode === "perAsset") {
-      for (const asset of activeAssets) {
-        const value =
-          Number((assetCapitals[asset.key] ?? "").replace(/,/g, "")) || 0;
-        result[asset.key] = value;
+      for (const item of activeAssets) {
+        const value = parseLocalizedNumber(assetCapitals[item.key] ?? "") ?? 0;
+        result[item.key] = value;
       }
       return result;
     }
@@ -327,15 +389,15 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     const total = effectiveInitialCapital;
     let remaining = total;
 
-    activeAssets.forEach((asset, index) => {
+    activeAssets.forEach((item, index) => {
       if (index === activeAssets.length - 1) {
-        result[asset.key] = remaining;
+        result[item.key] = remaining;
         return;
       }
 
-      const weight = normalizedAllocation[asset.key] ?? 0;
+      const weight = normalizedAllocation[item.key] ?? 0;
       const portion = Math.round(total * (weight / 100));
-      result[asset.key] = portion;
+      result[item.key] = portion;
       remaining -= portion;
     });
 
@@ -370,7 +432,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   const steps = [c.step1, c.step2, c.step3, c.step4, c.step5];
 
   const stepNextDisabled =
-    (step === 1 && (!monthlyExpense || Number(monthlyExpense) <= 0)) ||
+    (step === 1 && (parseLocalizedNumber(monthlyExpense) ?? 0) <= 0) ||
     (step === 2 && (realPreview <= 0 || historicalData.length === 0)) ||
     (step === 3 && effectiveInitialCapital < 0);
 
@@ -412,14 +474,14 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
           </CardHeader>
           <CardContent className="space-y-2">
             <Label>{c.monthlyExpense}</Label>
-            <Input
-              inputMode="numeric"
+            <NumericInput
+              locale={locale}
+              unitLabel={c.toman}
               placeholder={c.monthlyExpensePlaceholder}
               value={monthlyExpense}
-              onChange={(e) => setMonthlyExpense(e.target.value)}
+              onChange={setMonthlyExpense}
               disabled={isLoading}
             />
-            <span className="text-xs text-zinc-500">{c.toman}</span>
           </CardContent>
         </Card>
       )}
@@ -431,20 +493,28 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
             <CardDescription>{c.portfolioHint}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {assetClasses.map((asset) => (
-              <div key={asset.id} className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <Label>{assetLabel(asset, locale)}</Label>
-                  <span className="font-medium">
-                    {Math.round(allocation[asset.key] ?? 0)}%
+            {portfolioItems.map((item) => (
+              <div key={item.key} className="space-y-2">
+                <div className="flex justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    <Label>{item.label}</Label>
+                    {item.isCustom && item.annualReturnRate != null && (
+                      <p className="text-xs text-zinc-500">
+                        {c.customPortfolioReturnLabel}:{" "}
+                        {formatPercent(item.annualReturnRate, locale)}
+                      </p>
+                    )}
+                  </div>
+                  <span className="shrink-0 font-medium">
+                    {Math.round(allocation[item.key] ?? 0)}%
                   </span>
                 </div>
                 <Slider
                   min={0}
                   max={100}
                   step={5}
-                  value={[allocation[asset.key] ?? 0]}
-                  onValueChange={(v) => updateAllocation(asset.key, v[0] ?? 0)}
+                  value={[allocation[item.key] ?? 0]}
+                  onValueChange={(v) => updateAllocation(item.key, v[0] ?? 0)}
                   disabled={isLoading}
                 />
               </div>
@@ -525,29 +595,28 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
             {capitalInputMode === "total" ? (
               <div className="space-y-2">
                 <Label>{c.initialCapital}</Label>
-                <Input
-                  inputMode="numeric"
+                <NumericInput
+                  locale={locale}
+                  unitLabel={c.toman}
                   placeholder={c.initialCapitalPlaceholder}
                   value={initialCapital}
-                  onChange={(e) => setInitialCapital(e.target.value)}
+                  onChange={setInitialCapital}
                 />
-                <span className="text-xs text-zinc-500">{c.toman}</span>
               </div>
             ) : (
               <div className="space-y-4">
-                {activeAssets.map((asset) => (
+                {activeAssets.map((item) => (
                   <div
-                    key={asset.id}
+                    key={item.key}
                     className="space-y-2 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900/50"
                   >
-                    <Label>{assetLabel(asset, locale)}</Label>
-                    <Input
-                      inputMode="numeric"
+                    <Label>{item.label}</Label>
+                    <NumericInput
+                      locale={locale}
+                      unitLabel={c.toman}
                       placeholder="0"
-                      value={assetCapitals[asset.key] ?? ""}
-                      onChange={(e) =>
-                        updateAssetCapital(asset.key, e.target.value)
-                      }
+                      value={assetCapitals[item.key] ?? ""}
+                      onChange={(value) => updateAssetCapital(item.key, value)}
                     />
                   </div>
                 ))}
@@ -572,7 +641,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-3xl font-bold tabular-nums">
-              {formatToman(result.targetCapital, locale)} {c.toman}
+              {formatTomanCompact(result.targetCapital, locale)} {c.toman}
             </p>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               {c.realReturnGeometric}:{" "}
@@ -592,7 +661,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
               <div className="flex justify-between">
                 <Label>{c.monthlyContribution}</Label>
                 <span className="text-sm font-medium tabular-nums">
-                  {formatToman(monthlyContribution, locale)} {c.toman}
+                  {formatTomanCompact(monthlyContribution, locale)} {c.toman}
                 </span>
               </div>
               <Slider

@@ -17,6 +17,7 @@ export type CalculatorInputs = {
   allocation: PortfolioAllocation;
   historicalData: HistoricalReturnRow[];
   monthlyContribution: number;
+  customReturns?: Record<string, number>;
 };
 
 export type ProjectionRow = {
@@ -288,6 +289,7 @@ export function validateCalculatorInputs(inputs: CalculatorInputs): {
   const realReturn = calculateHistoricalRealReturn(
     inputs.allocation,
     inputs.historicalData,
+    inputs.customReturns,
   );
 
   if (inputs.historicalData.length > 0 && realReturn <= 0) {
@@ -306,10 +308,12 @@ export function calculateFreedom(inputs: CalculatorInputs): CalculatorResult | n
   const realReturnRate = calculateHistoricalRealReturn(
     inputs.allocation,
     inputs.historicalData,
+    inputs.customReturns,
   );
   const nominalReturnRate = calculateHistoricalNominalReturn(
     inputs.allocation,
     inputs.historicalData,
+    inputs.customReturns,
   );
   const targetCapital = calculateTargetCapital(
     inputs.monthlyExpense,

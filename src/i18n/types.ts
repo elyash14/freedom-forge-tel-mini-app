@@ -29,6 +29,7 @@ export type Dictionary = {
     totalCapitalLabel: string;
     portfolioTitle: string;
     portfolioHint: string;
+    customPortfolioReturnLabel: string;
     allocationTotal: string;
     historicalDataYears: string;
     nominalReturn: string;
@@ -81,6 +82,7 @@ export type Dictionary = {
     subtitle: string;
     mainTabAssetClasses: string;
     mainTabHistoricalData: string;
+    mainTabCustomPortfolios: string;
     assetsSection: string;
     assetsHint: string;
     historicalSection: string;
@@ -99,6 +101,16 @@ export type Dictionary = {
     saved: string;
     loadError: string;
     saveError: string;
+    customPortfoliosSection: string;
+    customPortfoliosHint: string;
+    customPortfolioName: string;
+    customPortfolioReturn: string;
+    customPortfolioReturnHint: string;
+    addCustomPortfolio: string;
+    deleteCustomPortfolio: string;
+    deleteCustomPortfolioConfirm: string;
+    customPortfoliosAuthRequired: string;
+    customPortfoliosEmpty: string;
   };
   nav: { calculator: string; plans: string; settings: string };
   telegram: {

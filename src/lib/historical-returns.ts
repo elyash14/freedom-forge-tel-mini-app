@@ -1,5 +1,5 @@
 import type { PortfolioAllocation } from "@/lib/freedom-calculator";
-import { normalizeAllocation } from "@/lib/freedom-calculator";
+import { isCustomPortfolioKey } from "@/lib/custom-portfolios";
 
 export type HistoricalReturnRow = {
   year: number;
@@ -62,11 +62,25 @@ export function getAssetReturnForYear(
 export function calculateYearNominalPortfolioReturn(
   row: HistoricalReturnRow,
   weights: PortfolioAllocation,
+  customReturns: Record<string, number> = {},
 ): number {
-  const normalized = normalizeAllocation(weights, [...PORTFOLIO_ASSET_KEYS]);
+  return Object.entries(weights).reduce((sum, [key, weight]) => {
+    if (weight <= 0) {
+      return sum;
+    }
 
-  return PORTFOLIO_ASSET_KEYS.reduce((sum, key) => {
-    return sum + (normalized[key] ?? 0) * getAssetReturnForYear(row, key);
+    if (isCustomPortfolioKey(key)) {
+      return sum + weight * (customReturns[key] ?? 0);
+    }
+
+    if (key in ASSET_KEY_TO_HISTORICAL_COLUMN) {
+      return (
+        sum +
+        weight * getAssetReturnForYear(row, key as PortfolioAssetKey)
+      );
+    }
+
+    return sum;
   }, 0);
 }
 
@@ -80,6 +94,7 @@ export function calculateYearRealReturn(
 export function calculateHistoricalRealReturn(
   weights: PortfolioAllocation,
   historicalData: HistoricalReturnRow[],
+  customReturns: Record<string, number> = {},
 ): number {
   if (historicalData.length === 0) {
     return 0;
@@ -88,7 +103,11 @@ export function calculateHistoricalRealReturn(
   let logSum = 0;
 
   for (const row of historicalData) {
-    const nominal = calculateYearNominalPortfolioReturn(row, weights);
+    const nominal = calculateYearNominalPortfolioReturn(
+      row,
+      weights,
+      customReturns,
+    );
     const real = calculateYearRealReturn(nominal, row.inflation);
     logSum += Math.log(1 + real);
   }
@@ -99,13 +118,16 @@ export function calculateHistoricalRealReturn(
 export function calculateHistoricalNominalReturn(
   weights: PortfolioAllocation,
   historicalData: HistoricalReturnRow[],
+  customReturns: Record<string, number> = {},
 ): number {
   if (historicalData.length === 0) {
     return 0;
   }
 
   const total = historicalData.reduce((sum, row) => {
-    return sum + calculateYearNominalPortfolioReturn(row, weights);
+    return (
+      sum + calculateYearNominalPortfolioReturn(row, weights, customReturns)
+    );
   }, 0);
 
   return total / historicalData.length;
