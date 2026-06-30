@@ -65,26 +65,16 @@ export default async function LocaleLayout({
   const typedLocale = locale as Locale;
   const dictionary = await getDictionary(typedLocale);
   const direction = localeDirection(typedLocale);
-  const fontClass =
-    typedLocale === "fa"
-      ? `${vazirmatn.variable} ${geistMono.variable}`
-      : `${geistSans.variable} ${geistMono.variable}`;
+  const bodyFontClass =
+    typedLocale === "fa" ? vazirmatn.className : geistSans.className;
 
   return (
     <html
       lang={typedLocale}
       dir={direction}
-      className={`${fontClass} h-full antialiased`}
+      className={`${geistMono.variable} h-full antialiased`}
     >
-      <body
-        className="flex h-full flex-col overflow-hidden bg-[var(--tg-theme-bg-color,var(--background))] text-[var(--tg-theme-text-color,var(--foreground))]"
-        style={{
-          fontFamily:
-            typedLocale === "fa"
-              ? "var(--font-vazirmatn), Arial, sans-serif"
-              : "var(--font-geist-sans), Arial, Helvetica, sans-serif",
-        }}
-      >
+      <body className={`${bodyFontClass} flex h-full flex-col overflow-hidden`}>
         <TelegramProvider
           locale={typedLocale}
           loadingText={dictionary.telegram.loading}
