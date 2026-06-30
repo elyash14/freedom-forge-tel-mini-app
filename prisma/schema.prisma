@@ -50,8 +50,24 @@ model User {
   selectedPlan     FreedomPlan?      @relation("SelectedPlan", fields: [selectedPlanId], references: [id], onDelete: SetNull)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
-  freedomPlans     FreedomPlan[]     @relation("UserPlans")
-  customPortfolios CustomPortfolio[]
+  freedomPlans      FreedomPlan[]      @relation("UserPlans")
+  customPortfolios  CustomPortfolio[]
+  externalHoldings  ExternalHolding[]
+}
+
+model ExternalHolding {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetKey   String
+  name       String
+  totalValue Float    @default(0)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, assetKey])
+  @@index([userId])
 }
 
 model CustomPortfolio {

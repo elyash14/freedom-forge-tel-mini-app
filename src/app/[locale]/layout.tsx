@@ -85,6 +85,7 @@ export default async function LocaleLayout({
               home: dictionary.nav.home,
               calculator: dictionary.nav.calculator,
               plans: dictionary.nav.plans,
+              externalAssets: dictionary.nav.externalAssets,
               settings: dictionary.nav.settings,
             }}
           >

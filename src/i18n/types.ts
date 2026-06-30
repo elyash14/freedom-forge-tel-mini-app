@@ -112,7 +112,13 @@ export type Dictionary = {
     customPortfoliosAuthRequired: string;
     customPortfoliosEmpty: string;
   };
-  nav: { home: string; calculator: string; plans: string; settings: string };
+  nav: {
+    home: string;
+    calculator: string;
+    plans: string;
+    externalAssets: string;
+    settings: string;
+  };
   home: {
     title: string;
     activePlan: string;
@@ -132,6 +138,39 @@ export type Dictionary = {
     monthlyExpense: string;
     targetCapital: string;
     monthlyContribution: string;
+    planTotal: string;
+    externalTotal: string;
+    grandTotal: string;
+    inPlan: string;
+    outOfPlan: string;
+    manageExternal: string;
+    noAssets: string;
+  };
+  externalAssets: {
+    title: string;
+    subtitle: string;
+    totalBalance: string;
+    addAsset: string;
+    addDrawerTitle: string;
+    editDrawerTitle: string;
+    selectBasket: string;
+    standardSection: string;
+    customSection: string;
+    otherSection: string;
+    totalValue: string;
+    delete: string;
+    deleteConfirm: string;
+    emptyState: string;
+    emptyStateHint: string;
+    noBasketsLeft: string;
+    loadError: string;
+    saveError: string;
+    toman: string;
+    create: string;
+    creating: string;
+    update: string;
+    saving: string;
+    saved: string;
   };
   telegram: {
     gateTitle: string;

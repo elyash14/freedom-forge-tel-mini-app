@@ -7,7 +7,7 @@ import {
   hideBackButton,
   isBackButtonMounted,
 } from "@telegram-apps/sdk";
-import { Calculator, Home, List, Settings } from "lucide-react";
+import { Calculator, Home, List, Settings, Wallet } from "lucide-react";
 
 import { useTelegram } from "@/components/telegram/telegram-provider";
 import type { Locale } from "@/i18n/config";
@@ -18,6 +18,7 @@ type BottomNavLabels = {
   home: string;
   calculator: string;
   plans: string;
+  externalAssets: string;
   settings: string;
 };
 
@@ -30,6 +31,7 @@ const tabs = [
   { id: "home", href: "/home", icon: Home },
   { id: "calculator", href: "/calculator", icon: Calculator },
   { id: "plans", href: "/plans", icon: List },
+  { id: "external-assets", href: "/external-assets", icon: Wallet },
   { id: "settings", href: "/settings", icon: Settings },
 ] as const;
 
@@ -39,6 +41,7 @@ export function BottomNav({ locale, labels }: BottomNavProps) {
     home: labels.home,
     calculator: labels.calculator,
     plans: labels.plans,
+    "external-assets": labels.externalAssets,
     settings: labels.settings,
   };
 
@@ -52,7 +55,7 @@ export function BottomNav({ locale, labels }: BottomNavProps) {
       className="shrink-0 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-bg-color,var(--background))] pb-[env(safe-area-inset-bottom)]"
       aria-label="Main navigation"
     >
-      <div className="mx-auto grid h-16 max-w-2xl grid-cols-4">
+      <div className="mx-auto grid h-16 max-w-2xl grid-cols-5">
         {tabs.map((tab) => {
           const href = `/${locale}${tab.href}`;
           const active = isActive(tab.href);

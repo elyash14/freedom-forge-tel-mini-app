@@ -14,6 +14,7 @@ type AppShellProps = {
     home: string;
     calculator: string;
     plans: string;
+    externalAssets: string;
     settings: string;
   };
   children: ReactNode;

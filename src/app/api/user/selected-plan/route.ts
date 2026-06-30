@@ -4,6 +4,12 @@ import {
   buildAssetLabelMap,
   resolveSelectedPlanId,
 } from "@/lib/selected-plan";
+import { toExternalHoldingDto } from "@/lib/external-holdings";
+import {
+  buildAssetBreakdown,
+  buildCombinedBreakdown,
+  calculatePortfolioTotals,
+} from "@/lib/home-stats";
 import { prisma } from "@/lib/prisma";
 import {
   getUserIdFromRequest,
@@ -23,16 +29,35 @@ export async function GET(request: NextRequest) {
   const locale = request.nextUrl.searchParams.get("locale") ?? "fa";
   const selectedPlanId = await resolveSelectedPlanId(userId);
 
+  const [externalHoldings, assetLabels] = await Promise.all([
+    prisma.externalHolding.findMany({
+      where: { userId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    }),
+    buildAssetLabelMap(userId, locale),
+  ]);
+
+  const externalDtos = externalHoldings.map(toExternalHoldingDto);
+
   if (!selectedPlanId) {
+    const combinedBreakdown = buildCombinedBreakdown(
+      [],
+      externalDtos,
+      assetLabels,
+    );
+
     return NextResponse.json({
       selectedPlanId: null,
       plan: null,
       progress: [],
-      assetLabels: {},
+      assetLabels,
+      externalHoldings: externalDtos,
+      combinedBreakdown,
+      totals: calculatePortfolioTotals(combinedBreakdown),
     });
   }
 
-  const [plan, progressRecords, assetLabels] = await Promise.all([
+  const [plan, progressRecords] = await Promise.all([
     prisma.freedomPlan.findFirst({
       where: { id: selectedPlanId, userId },
     }),
@@ -40,7 +65,6 @@ export async function GET(request: NextRequest) {
       where: { planId: selectedPlanId },
       orderBy: [{ year: "asc" }, { month: "asc" }],
     }),
-    buildAssetLabelMap(userId, locale),
   ]);
 
   if (!plan) {
@@ -53,15 +77,38 @@ export async function GET(request: NextRequest) {
       selectedPlanId: null,
       plan: null,
       progress: [],
-      assetLabels: {},
+      assetLabels,
+      externalHoldings: externalDtos,
+      combinedBreakdown: buildCombinedBreakdown([], externalDtos, assetLabels),
+      totals: calculatePortfolioTotals(
+        buildCombinedBreakdown([], externalDtos, assetLabels),
+      ),
     });
   }
+
+  const latestProgress = progressRecords.at(-1) ?? null;
+  const planBreakdown = buildAssetBreakdown(
+    latestProgress?.assetDetails as
+      | Record<string, { totalValue?: number }>
+      | null
+      | undefined,
+    plan.assetCapitals as Record<string, number> | null | undefined,
+    assetLabels,
+  );
+  const combinedBreakdown = buildCombinedBreakdown(
+    planBreakdown,
+    externalDtos,
+    assetLabels,
+  );
 
   return NextResponse.json({
     selectedPlanId,
     plan,
     progress: progressRecords,
     assetLabels,
+    externalHoldings: externalDtos,
+    combinedBreakdown,
+    totals: calculatePortfolioTotals(combinedBreakdown),
   });
 }
 
