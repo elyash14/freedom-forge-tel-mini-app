@@ -133,6 +133,69 @@ export function calculateHistoricalNominalReturn(
   return total / historicalData.length;
 }
 
+export function calculateAssetHistoricalNominalReturn(
+  assetKey: string,
+  historicalData: HistoricalReturnRow[],
+  customReturns: Record<string, number> = {},
+): number | null {
+  if (isCustomAssetKey(assetKey)) {
+    return customReturns[assetKey] ?? null;
+  }
+
+  if (!(assetKey in ASSET_KEY_TO_HISTORICAL_COLUMN) || historicalData.length === 0) {
+    return null;
+  }
+
+  const portfolioKey = assetKey as PortfolioAssetKey;
+  const total = historicalData.reduce(
+    (sum, row) => sum + getAssetReturnForYear(row, portfolioKey),
+    0,
+  );
+
+  return total / historicalData.length;
+}
+
+export function calculateAssetHistoricalRealReturn(
+  assetKey: string,
+  historicalData: HistoricalReturnRow[],
+  customReturns: Record<string, number> = {},
+): number | null {
+  if (historicalData.length === 0) {
+    return null;
+  }
+
+  if (isCustomAssetKey(assetKey)) {
+    const nominal = customReturns[assetKey];
+    if (nominal == null) {
+      return null;
+    }
+
+    let logSum = 0;
+
+    for (const row of historicalData) {
+      const real = calculateYearRealReturn(nominal, row.inflation);
+      logSum += Math.log(1 + real);
+    }
+
+    return Math.exp(logSum / historicalData.length) - 1;
+  }
+
+  if (!(assetKey in ASSET_KEY_TO_HISTORICAL_COLUMN)) {
+    return null;
+  }
+
+  const portfolioKey = assetKey as PortfolioAssetKey;
+  let logSum = 0;
+
+  for (const row of historicalData) {
+    const nominal = getAssetReturnForYear(row, portfolioKey);
+    const real = calculateYearRealReturn(nominal, row.inflation);
+    logSum += Math.log(1 + real);
+  }
+
+  return Math.exp(logSum / historicalData.length) - 1;
+}
+
 export function calculateExpectedInflation(
   historicalData: HistoricalReturnRow[],
 ): number {

@@ -38,9 +38,10 @@ export const en = {
     customAssetReturnLabel: "Fixed return",
     allocationTotal: "Allocation total",
     historicalDataYears: "Based on {years} years of historical data",
-    nominalReturn: "Portfolio average nominal return",
+    nominalReturn: "Nominal return",
+    portfolioNominalReturn: "Portfolio average nominal return",
     realReturn: "Real return (above inflation)",
-    realReturnGeometric: "Real return (20-year geometric mean)",
+    realReturnGeometric: "Real return",
     historicalDataMissing: "Historical return data is not loaded.",
     realReturnNegative:
       "Real return is negative — your portfolio lags inflation. Change the mix.",

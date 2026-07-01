@@ -38,9 +38,10 @@ export const fa = {
     customAssetReturnLabel: "بازده ثابت",
     allocationTotal: "جمع تخصیص",
     historicalDataYears: "بر اساس {years} سال داده تاریخی",
-    nominalReturn: "بازده اسمی میانگین سبد",
+    nominalReturn: "بازده اسمی",
+    portfolioNominalReturn: "بازده اسمی میانگین سبد",
     realReturn: "بازده واقعی (بالای تورم)",
-    realReturnGeometric: "بازده واقعی (میانگین هندسی ۲۰ ساله)",
+    realReturnGeometric: "بازده واقعی",
     historicalDataMissing: "داده بازده تاریخی بارگذاری نشده.",
     realReturnNegative:
       "بازده واقعی منفی است — سبدت از تورم عقب می‌ماند. ترکیب دارایی را عوض کن.",

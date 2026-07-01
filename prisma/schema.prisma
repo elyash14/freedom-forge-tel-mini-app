@@ -10,6 +10,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  user
+  admin
+}
+
 model AppConfig {
   id        String   @id @default("default")
   updatedAt DateTime @updatedAt
@@ -47,6 +52,7 @@ model User {
   firstName        String?
   lastName         String?
   locale           String            @default("fa")
+  role             UserRole          @default(user)
   selectedPlanId   String?
   selectedPlan     FreedomPlan?      @relation("SelectedPlan", fields: [selectedPlanId], references: [id], onDelete: SetNull)
   createdAt        DateTime          @default(now())

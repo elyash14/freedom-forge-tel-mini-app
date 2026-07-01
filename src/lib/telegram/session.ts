@@ -70,13 +70,6 @@ export async function getAuthenticatedUser() {
   return prisma.user.findUnique({ where: { id: userId } });
 }
 
-export function getAuthenticatedUserFromRequest(request: NextRequest) {
-  const userId = getAuthenticatedUserIdFromRequest(request);
-  if (!userId) return null;
-
-  return prisma.user.findUnique({ where: { id: userId } });
-}
-
 export async function requireAuthenticatedUserId(): Promise<string | null> {
   return getAuthenticatedUserId();
 }

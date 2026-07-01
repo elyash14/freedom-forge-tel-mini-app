@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         username: dbUser.username,
         firstName: dbUser.firstName,
         locale: dbUser.locale,
+        role: dbUser.role,
       },
     });
 
@@ -95,6 +96,7 @@ export async function GET(request: NextRequest) {
       username: user.username,
       firstName: user.firstName,
       locale: user.locale,
+      role: user.role,
     },
   });
 }

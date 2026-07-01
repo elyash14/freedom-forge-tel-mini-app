@@ -29,12 +29,14 @@ type TelegramContextValue = {
   isTelegram: boolean;
   isReady: boolean;
   isAuthenticated: boolean;
+  isAdmin: boolean;
 };
 
 const TelegramContext = createContext<TelegramContextValue>({
   isTelegram: false,
   isReady: false,
   isAuthenticated: false,
+  isAdmin: false,
 });
 
 export function useTelegram() {
@@ -85,6 +87,7 @@ export function TelegramProvider({
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isTelegram, setIsTelegram] = useState(
     () => typeof window !== "undefined" && isInsideTelegram(),
   );
@@ -151,6 +154,10 @@ export function TelegramProvider({
         return;
       }
 
+      const authData = (await authRes.json()) as {
+        user?: { role?: string };
+      };
+      setIsAdmin(authData.user?.role === "admin");
       setIsAuthenticated(true);
       setIsReady(true);
     } catch (error) {
@@ -165,8 +172,8 @@ export function TelegramProvider({
   }, [boot]);
 
   const value = useMemo(
-    () => ({ isTelegram, isReady, isAuthenticated }),
-    [isTelegram, isReady, isAuthenticated],
+    () => ({ isTelegram, isReady, isAuthenticated, isAdmin }),
+    [isTelegram, isReady, isAuthenticated, isAdmin],
   );
 
   if (!isReady && !isGatePage) {

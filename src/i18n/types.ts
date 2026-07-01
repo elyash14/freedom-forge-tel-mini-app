@@ -30,10 +30,11 @@ export type Dictionary = {
     portfolioTitle: string;
     portfolioHint: string;
     customAssetReturnLabel: string;
+    nominalReturn: string;
+    portfolioNominalReturn: string;
+    realReturn: string;
     allocationTotal: string;
     historicalDataYears: string;
-    nominalReturn: string;
-    realReturn: string;
     realReturnGeometric: string;
     realReturnNegative: string;
     historicalDataMissing: string;
