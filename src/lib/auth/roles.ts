@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { isAdminRole } from "@/lib/auth/role-utils";
 import { prisma } from "@/lib/prisma";
 import { getAuthenticatedUserIdFromRequest } from "@/lib/telegram/session";
 
-export const USER_ROLES = ["user", "admin"] as const;
-export type UserRole = (typeof USER_ROLES)[number];
-
-export function isAdminRole(role: string): role is "admin" {
-  return role === "admin";
-}
+export { isAdminRole, USER_ROLES, type UserRole } from "@/lib/auth/role-utils";
 
 export function forbiddenResponse() {
   return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+}
+
+export function unauthorizedResponse() {
+  return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 }
 
 export async function getAuthenticatedUserFromRequest(request: NextRequest) {

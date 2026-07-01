@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { isValidHexColor } from "@/lib/asset-colors";
+import {
+  forbiddenResponse,
+  requireAdminFromRequest,
+} from "@/lib/auth/roles";
 import { prisma } from "@/lib/prisma";
 
 type AssetClassUpdate = {
@@ -20,6 +24,11 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
+  const admin = await requireAdminFromRequest(request);
+  if (!admin) {
+    return forbiddenResponse();
+  }
+
   const body = (await request.json()) as { assetClasses?: AssetClassUpdate[] };
 
   if (!body.assetClasses?.length) {

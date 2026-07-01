@@ -7,6 +7,7 @@ import { getDictionary } from "@/i18n/get-dictionary";
 
 import "../globals.css";
 import { TelegramProvider } from "@/components/telegram/telegram-provider";
+import { AppPreferencesProvider } from "@/components/preferences/app-preferences-provider";
 import { AppShell } from "@/components/navigation/app-shell";
 
 const geistSans = Geist({
@@ -79,7 +80,8 @@ export default async function LocaleLayout({
           locale={typedLocale}
           loadingText={dictionary.telegram.loading}
         >
-          <AppShell
+          <AppPreferencesProvider>
+            <AppShell
             locale={typedLocale}
             navLabels={{
               home: dictionary.nav.home,
@@ -91,6 +93,7 @@ export default async function LocaleLayout({
           >
             {children}
           </AppShell>
+          </AppPreferencesProvider>
         </TelegramProvider>
       </body>
     </html>

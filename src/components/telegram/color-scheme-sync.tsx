@@ -10,16 +10,25 @@ import {
 
 type ColorSchemeSyncProps = {
   useTelegramTheme: boolean;
+  forceDark?: boolean;
 };
 
-export function ColorSchemeSync({ useTelegramTheme }: ColorSchemeSyncProps) {
+export function ColorSchemeSync({
+  useTelegramTheme,
+  forceDark,
+}: ColorSchemeSyncProps) {
   useEffect(() => {
+    if (forceDark !== undefined) {
+      applyDocumentColorScheme(forceDark);
+      return;
+    }
+
     const subscribe = useTelegramTheme
       ? subscribeTelegramColorScheme
       : subscribeSystemColorScheme;
 
     return subscribe(applyDocumentColorScheme);
-  }, [useTelegramTheme]);
+  }, [useTelegramTheme, forceDark]);
 
   return null;
 }

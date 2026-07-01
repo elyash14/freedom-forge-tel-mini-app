@@ -44,13 +44,14 @@ export async function POST(request: NextRequest) {
     });
 
     const response = NextResponse.json({
+      authenticated: true,
       user: {
         id: dbUser.id,
         telegramId: user.id.toString(),
         username: dbUser.username,
         firstName: dbUser.firstName,
         locale: dbUser.locale,
-        role: dbUser.role,
+        role: String(dbUser.role),
       },
     });
 
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
       username: user.username,
       firstName: user.firstName,
       locale: user.locale,
-      role: user.role,
+      role: String(user.role),
     },
   });
 }

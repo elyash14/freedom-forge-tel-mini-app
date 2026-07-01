@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import {
+  forbiddenResponse,
+  requireAdminFromRequest,
+} from "@/lib/auth/roles";
 import { prisma } from "@/lib/prisma";
 
 type HistoricalReturnUpdate = {
@@ -26,6 +30,11 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
+  const admin = await requireAdminFromRequest(request);
+  if (!admin) {
+    return forbiddenResponse();
+  }
+
   const body = (await request.json()) as { rows?: HistoricalReturnUpdate[] };
 
   if (!body.rows?.length) {

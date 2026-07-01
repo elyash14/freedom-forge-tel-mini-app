@@ -74,9 +74,9 @@ function TabsTrigger({ value, children, className }: TabsTriggerProps) {
       aria-selected={isActive}
       onClick={() => onValueChange(value)}
       className={cn(
-        "shrink-0 rounded-md px-3 py-2 text-xs font-medium transition-colors sm:text-sm",
+        "shrink-0 rounded-md px-3 py-2 text-xs font-medium transition-all sm:text-sm",
         isActive
-          ? "bg-[var(--tg-theme-section-bg-color,var(--card))] text-[var(--tg-theme-text-color,var(--foreground))]"
+          ? "bg-[var(--tg-theme-bg-color,var(--background))] text-[var(--tg-theme-text-color,var(--foreground))] shadow-sm"
           : "text-[var(--tg-theme-hint-color,var(--muted-foreground))] hover:text-[var(--tg-theme-text-color,var(--foreground))]",
         className,
       )}

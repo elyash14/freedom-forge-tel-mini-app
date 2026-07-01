@@ -28,9 +28,9 @@ type BottomNavProps = {
 };
 
 const tabs = [
-  { id: "home", href: "/home", icon: Home },
   { id: "calculator", href: "/calculator", icon: Calculator },
   { id: "plans", href: "/plans", icon: List },
+  { id: "home", href: "/home", icon: Home, center: true },
   { id: "external-assets", href: "/external-assets", icon: Wallet },
   { id: "settings", href: "/settings", icon: Settings },
 ] as const;
@@ -55,11 +55,12 @@ export function BottomNav({ locale, labels }: BottomNavProps) {
       className="shrink-0 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-bg-color,var(--background))] pb-[env(safe-area-inset-bottom)]"
       aria-label="Main navigation"
     >
-      <div className="mx-auto grid h-16 max-w-2xl grid-cols-5">
+      <div className="mx-auto grid h-16 max-w-2xl grid-cols-5 items-end">
         {tabs.map((tab) => {
           const href = `/${locale}${tab.href}`;
           const active = isActive(tab.href);
           const Icon = tab.icon;
+          const isCenter = "center" in tab && tab.center;
 
           return (
             <Link
@@ -69,12 +70,27 @@ export function BottomNav({ locale, labels }: BottomNavProps) {
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center justify-center transition-colors",
-                active
-                  ? "text-[var(--tg-theme-link-color,var(--primary))]"
-                  : "text-[var(--tg-theme-hint-color,var(--muted-foreground))]",
+                isCenter ? "pb-1" : "h-full",
+                !isCenter &&
+                  (active
+                    ? "text-[var(--tg-theme-link-color,var(--primary))]"
+                    : "text-[var(--tg-theme-hint-color,var(--muted-foreground))]"),
               )}
             >
-              <Icon className={cn("h-6 w-6", active && "stroke-[2.5]")} />
+              {isCenter ? (
+                <span
+                  className={cn(
+                    "flex h-12 w-12 -translate-y-1 items-center justify-center rounded-full shadow-sm transition-colors",
+                    active
+                      ? "bg-[var(--tg-theme-button-color,var(--primary))] text-[var(--tg-theme-button-text-color,var(--primary-foreground))]"
+                      : "bg-[var(--tg-theme-secondary-bg-color,var(--muted))] text-[var(--tg-theme-hint-color,var(--muted-foreground))]",
+                  )}
+                >
+                  <Icon className="h-6 w-6" strokeWidth={active ? 2.5 : 2} />
+                </span>
+              ) : (
+                <Icon className={cn("h-6 w-6", active && "stroke-[2.5]")} />
+              )}
             </Link>
           );
         })}

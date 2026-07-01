@@ -6,24 +6,27 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  bindMiniAppCssVars,
-  init,
   isTMA,
-  miniApp,
-  mountMiniApp,
   retrieveRawInitData,
-  setMiniAppBackgroundColor,
-  setMiniAppHeaderColor,
 } from "@telegram-apps/sdk";
 
 import type { Locale } from "@/i18n/config";
-import { hideTelegramMainButton } from "@/lib/telegram/main-button";
+import { isAdminRole } from "@/lib/auth/role-utils";
 import { ColorSchemeSync } from "@/components/telegram/color-scheme-sync";
+import {
+  clearTelegramSessionSnapshot,
+  ensureTelegramSdkReady,
+  getTelegramSessionSnapshot,
+  resetTelegramSdkBootForRetry,
+  setTelegramSessionSnapshot,
+  type TelegramSessionSnapshot,
+} from "@/lib/telegram/boot-state";
 
 type TelegramContextValue = {
   isTelegram: boolean;
@@ -67,15 +70,63 @@ function isInsideTelegram(): boolean {
   return getInitData().length > 0;
 }
 
-async function mountMiniAppSafely() {
-  if (!mountMiniApp.isAvailable()) return;
+async function refreshSessionFromCookie(): Promise<TelegramSessionSnapshot | null> {
+  const authRes = await fetch("/api/auth/telegram", {
+    credentials: "include",
+  });
 
-  await Promise.race([
-    mountMiniApp(),
-    new Promise<void>((resolve) => {
-      setTimeout(resolve, 3000);
-    }),
-  ]);
+  if (!authRes.ok) {
+    return null;
+  }
+
+  const authData = (await authRes.json()) as {
+    user?: { role?: string };
+  };
+  const role =
+    typeof authData.user?.role === "string" ? authData.user.role : "";
+  const admin = isAdminRole(role);
+
+  return {
+    isTelegram: true,
+    isAuthenticated: true,
+    isAdmin: admin,
+  };
+}
+
+function applySession(
+  snapshot: TelegramSessionSnapshot,
+  setters: {
+    setIsTelegram: (value: boolean) => void;
+    setIsAuthenticated: (value: boolean) => void;
+    setIsAdmin: (value: boolean) => void;
+    setIsReady: (value: boolean) => void;
+    setBootError: (value: string | null) => void;
+  },
+) {
+  setTelegramSessionSnapshot(snapshot);
+  setters.setIsTelegram(snapshot.isTelegram);
+  setters.setIsAuthenticated(snapshot.isAuthenticated);
+  setters.setIsAdmin(snapshot.isAdmin);
+  setters.setIsReady(true);
+  setters.setBootError(null);
+}
+
+function snapshotToState(snapshot: ReturnType<typeof getTelegramSessionSnapshot>) {
+  if (!snapshot?.isAuthenticated) {
+    return {
+      isReady: false,
+      isTelegram: false,
+      isAuthenticated: false,
+      isAdmin: false,
+    };
+  }
+
+  return {
+    isReady: true,
+    isTelegram: snapshot.isTelegram,
+    isAuthenticated: snapshot.isAuthenticated,
+    isAdmin: snapshot.isAdmin,
+  };
 }
 
 export function TelegramProvider({
@@ -85,11 +136,21 @@ export function TelegramProvider({
 }: TelegramProviderProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isReady, setIsReady] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
+
+  const cachedSession = getTelegramSessionSnapshot();
+  const cachedState = snapshotToState(cachedSession);
+
+  const [isReady, setIsReady] = useState(cachedState.isReady);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    cachedState.isAuthenticated,
+  );
+  const [isAdmin, setIsAdmin] = useState(cachedState.isAdmin);
   const [isTelegram, setIsTelegram] = useState(
-    () => typeof window !== "undefined" && isInsideTelegram(),
+    () =>
+      cachedState.isTelegram ||
+      (typeof window !== "undefined" && isInsideTelegram()),
   );
   const [bootError, setBootError] = useState<string | null>(null);
 
@@ -103,38 +164,33 @@ export function TelegramProvider({
     }
 
     if (!isInsideTelegram()) {
-      router.replace(`/${locale}/telegram-gate`);
+      router.replace(`/${localeRef.current}/telegram-gate`);
       return;
     }
 
     setIsTelegram(true);
 
     try {
-      init();
-      await mountMiniAppSafely();
+      await ensureTelegramSdkReady();
 
-      if (bindMiniAppCssVars.isAvailable()) {
-        bindMiniAppCssVars();
+      const refreshed = await refreshSessionFromCookie();
+      if (refreshed) {
+        applySession(refreshed, {
+          setIsTelegram,
+          setIsAuthenticated,
+          setIsAdmin,
+          setIsReady,
+          setBootError,
+        });
+        return;
       }
 
-      if (miniApp.ready.isAvailable()) {
-        miniApp.ready();
-      }
-
-      hideTelegramMainButton();
-
-      if (setMiniAppHeaderColor.isAvailable()) {
-        setMiniAppHeaderColor("bg_color");
-      }
-
-      if (setMiniAppBackgroundColor.isAvailable()) {
-        setMiniAppBackgroundColor("bg_color");
-      }
+      clearTelegramSessionSnapshot();
 
       const initData = getInitData();
 
       if (!initData) {
-        router.replace(`/${locale}/telegram-gate`);
+        router.replace(`/${localeRef.current}/telegram-gate`);
         return;
       }
 
@@ -154,18 +210,34 @@ export function TelegramProvider({
         return;
       }
 
-      const authData = (await authRes.json()) as {
-        user?: { role?: string };
-      };
-      setIsAdmin(authData.user?.role === "admin");
-      setIsAuthenticated(true);
-      setIsReady(true);
+  const authData = (await authRes.json()) as {
+    authenticated?: boolean;
+    user?: { role?: string };
+  };
+  const role =
+    typeof authData.user?.role === "string" ? authData.user.role : "";
+  const admin = isAdminRole(role);
+
+      applySession(
+        {
+          isTelegram: true,
+          isAuthenticated: true,
+          isAdmin: admin,
+        },
+        {
+          setIsTelegram,
+          setIsAuthenticated,
+          setIsAdmin,
+          setIsReady,
+          setBootError,
+        },
+      );
     } catch (error) {
       console.error("Telegram boot failed:", error);
       setBootError("Failed to start the Mini App.");
       setIsReady(true);
     }
-  }, [isGatePage, locale, router]);
+  }, [isGatePage, router]);
 
   useEffect(() => {
     void boot();
@@ -197,8 +269,12 @@ export function TelegramProvider({
             type="button"
             className="rounded-xl bg-[var(--tg-theme-button-color,var(--primary))] px-4 py-2 text-[var(--tg-theme-button-text-color,var(--primary-foreground))]"
             onClick={() => {
+              resetTelegramSdkBootForRetry();
+              clearTelegramSessionSnapshot();
               setBootError(null);
               setIsReady(false);
+              setIsAuthenticated(false);
+              setIsAdmin(false);
               void boot();
             }}
           >
@@ -211,7 +287,6 @@ export function TelegramProvider({
 
   return (
     <TelegramContext.Provider value={value}>
-      <ColorSchemeSync useTelegramTheme={useTelegramTheme} />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         {children}
       </div>
