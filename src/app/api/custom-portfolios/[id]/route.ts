@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import type { CustomPortfolioDto } from "@/lib/custom-portfolios";
+import { isValidHexColor } from "@/lib/asset-colors";
 import { prisma } from "@/lib/prisma";
 import {
   getUserIdFromRequest,
@@ -10,18 +11,21 @@ import {
 type UpdateCustomPortfolioBody = {
   name?: string;
   annualReturnRate?: number;
+  color?: string;
 };
 
 function toDto(portfolio: {
   id: string;
   name: string;
   annualReturnRate: number;
+  color: string;
   sortOrder: number;
 }): CustomPortfolioDto {
   return {
     id: portfolio.id,
     name: portfolio.name,
     annualReturnRate: portfolio.annualReturnRate,
+    color: portfolio.color,
     sortOrder: portfolio.sortOrder,
   };
 }
@@ -48,6 +52,7 @@ export async function PATCH(
   const name = body.name?.trim();
   const annualReturnRate =
     body.annualReturnRate != null ? Number(body.annualReturnRate) : undefined;
+  const color = body.color?.trim();
 
   if (name !== undefined && !name) {
     return NextResponse.json({ error: "Name is required." }, { status: 400 });
@@ -60,11 +65,16 @@ export async function PATCH(
     );
   }
 
+  if (color !== undefined && !isValidHexColor(color)) {
+    return NextResponse.json({ error: "Invalid color." }, { status: 400 });
+  }
+
   const portfolio = await prisma.customPortfolio.update({
     where: { id },
     data: {
       ...(name !== undefined && { name }),
       ...(annualReturnRate !== undefined && { annualReturnRate }),
+      ...(color !== undefined && { color }),
     },
   });
 

@@ -22,7 +22,7 @@ import {
 import type { ExternalHoldingDto } from "@/lib/external-holdings";
 import { isFreeformExternalKey } from "@/lib/external-holdings";
 import { formatTomanCompact } from "@/lib/freedom-format";
-import { colorForKey } from "@/lib/asset-colors";
+import { buildAssetColorMap, resolveAssetColor } from "@/lib/asset-colors";
 import { parseLocalizedNumber } from "@/lib/numeric-input";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +53,7 @@ export function ExternalAssetsPage({
   const [holdings, setHoldings] = useState<ExternalHoldingDto[]>([]);
   const [standardBaskets, setStandardBaskets] = useState<BasketOption[]>([]);
   const [customBaskets, setCustomBaskets] = useState<BasketOption[]>([]);
+  const [assetColors, setAssetColors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -81,31 +82,46 @@ export function ExternalAssetsPage({
       setHoldings((holdingsData.holdings ?? []) as ExternalHoldingDto[]);
       setLoadError(null);
 
-      if (assetClassesRes.ok) {
-        const assetClassesData = await assetClassesRes.json();
-        setStandardBaskets(
-          (assetClassesData ?? []).map(
-            (asset: { key: string; labelFa: string; labelEn: string }) => ({
-              assetKey: asset.key,
-              label: locale === "fa" ? asset.labelFa : asset.labelEn,
-              kind: "standard" as const,
-            }),
-          ),
-        );
-      }
+      const assetClassesData = assetClassesRes.ok
+        ? ((await assetClassesRes.json()) as {
+            key: string;
+            labelFa: string;
+            labelEn: string;
+            color: string;
+          }[])
+        : [];
+      const customData = customRes?.ok
+        ? ((await customRes.json()) as {
+            portfolios: { id: string; name: string; color: string }[];
+          })
+        : { portfolios: [] };
 
-      if (customRes.ok) {
-        const customData = await customRes.json();
-        setCustomBaskets(
-          (customData.portfolios ?? []).map(
-            (portfolio: { id: string; name: string }) => ({
-              assetKey: customPortfolioKey(portfolio.id),
-              label: portfolio.name,
-              kind: "custom" as const,
-            }),
-          ),
-        );
-      }
+      setStandardBaskets(
+        assetClassesData.map((asset) => ({
+          assetKey: asset.key,
+          label: locale === "fa" ? asset.labelFa : asset.labelEn,
+          kind: "standard" as const,
+        })),
+      );
+      setCustomBaskets(
+        customData.portfolios.map((portfolio) => ({
+          assetKey: customPortfolioKey(portfolio.id),
+          label: portfolio.name,
+          kind: "custom" as const,
+        })),
+      );
+      setAssetColors(
+        buildAssetColorMap(
+          assetClassesData.map((asset) => ({
+            key: asset.key,
+            color: asset.color,
+          })),
+          customData.portfolios.map((portfolio) => ({
+            id: portfolio.id,
+            color: portfolio.color,
+          })),
+        ),
+      );
     } catch {
       setLoadError(e.loadError);
     } finally {
@@ -367,7 +383,7 @@ export function ExternalAssetsPage({
               </h2>
               <div className="space-y-2">
                 {group.items.map((holding) => {
-                  const color = colorForKey(holding.assetKey);
+                  const color = resolveAssetColor(holding.assetKey, assetColors);
 
                   return (
                     <div
@@ -439,13 +455,16 @@ export function ExternalAssetsPage({
                 <div
                   className="flex h-10 w-10 items-center justify-center rounded-lg"
                   style={{
-                    backgroundColor: `${colorForKey(editingHolding.assetKey)}22`,
+                    backgroundColor: `${resolveAssetColor(editingHolding.assetKey, assetColors)}22`,
                   }}
                 >
                   <div
                     className="h-2.5 w-2.5 rounded-full"
                     style={{
-                      backgroundColor: colorForKey(editingHolding.assetKey),
+                      backgroundColor: resolveAssetColor(
+                        editingHolding.assetKey,
+                        assetColors,
+                      ),
                     }}
                   />
                 </div>
@@ -472,6 +491,7 @@ export function ExternalAssetsPage({
                               key={basket.assetKey}
                               basket={basket}
                               selected={selectedBasketKey === basket.assetKey}
+                              colorMap={assetColors}
                               onSelect={() =>
                                 setSelectedBasketKey(basket.assetKey)
                               }
@@ -492,6 +512,7 @@ export function ExternalAssetsPage({
                               key={basket.assetKey}
                               basket={basket}
                               selected={selectedBasketKey === basket.assetKey}
+                              colorMap={assetColors}
                               onSelect={() =>
                                 setSelectedBasketKey(basket.assetKey)
                               }
@@ -557,12 +578,14 @@ function BasketChip({
   basket,
   selected,
   onSelect,
+  colorMap,
 }: {
   basket: BasketOption;
   selected: boolean;
   onSelect: () => void;
+  colorMap: Record<string, string>;
 }) {
-  const color = colorForKey(basket.assetKey);
+  const color = resolveAssetColor(basket.assetKey, colorMap);
 
   return (
     <button

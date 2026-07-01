@@ -7,6 +7,7 @@ import { useTelegram } from "@/components/telegram/telegram-provider";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ColorInput } from "@/components/ui/color-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -31,6 +32,7 @@ type AssetClassDto = {
   key: string;
   labelFa: string;
   labelEn: string;
+  color: string;
 };
 
 type MainSettingsTab = "assets" | "historical" | "custom";
@@ -168,7 +170,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
   function updateAsset(
     id: string,
-    field: "labelFa" | "labelEn",
+    field: "labelFa" | "labelEn" | "color",
     value: string,
   ) {
     setAssetClasses((items) =>
@@ -268,7 +270,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
   function updateCustomPortfolio(
     id: string,
-    field: "name" | "annualReturnRate",
+    field: "name" | "annualReturnRate" | "color",
     value: string,
   ) {
     setCustomPortfolios((items) =>
@@ -279,6 +281,10 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
         if (field === "name") {
           return { ...item, name: value };
+        }
+
+        if (field === "color") {
+          return { ...item, color: value };
         }
 
         const decimal = percentInputToDecimal(value);
@@ -338,6 +344,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
             body: JSON.stringify({
               name: portfolio.name.trim(),
               annualReturnRate: portfolio.annualReturnRate,
+              color: portfolio.color,
             }),
           }),
         ),
@@ -574,7 +581,19 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                     <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                       {asset.key}
                     </p>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex items-end gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">{s.assetColor}</Label>
+                        <ColorInput
+                          value={asset.color}
+                          aria-label={s.assetColor}
+                          onChange={(value) =>
+                            updateAsset(asset.id, "color", value)
+                          }
+                          disabled={isLoading}
+                        />
+                      </div>
+                      <div className="grid flex-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
                         <Label className="text-xs">{s.labelFa}</Label>
                         <Input
@@ -594,6 +613,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                           }
                           disabled={isLoading}
                         />
+                      </div>
                       </div>
                     </div>
                   </div>
@@ -684,7 +704,22 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                           className="space-y-3 rounded-lg border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-secondary-bg-color,var(--muted))] p-4"
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="grid flex-1 gap-3 sm:grid-cols-2">
+                            <div className="grid flex-1 gap-3 sm:grid-cols-[auto_1fr_1fr]">
+                              <div className="space-y-1">
+                                <Label className="text-xs">{s.assetColor}</Label>
+                                <ColorInput
+                                  value={portfolio.color}
+                                  aria-label={s.assetColor}
+                                  onChange={(value) =>
+                                    updateCustomPortfolio(
+                                      portfolio.id,
+                                      "color",
+                                      value,
+                                    )
+                                  }
+                                  disabled={isLoading}
+                                />
+                              </div>
                               <div className="space-y-1">
                                 <Label className="text-xs">{s.customPortfolioName}</Label>
                                 <Input

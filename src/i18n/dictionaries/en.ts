@@ -176,6 +176,7 @@ export const en = {
     emptyValue: "—",
     labelFa: "Persian label",
     labelEn: "English label",
+    assetColor: "Color",
     save: "Save",
     saving: "Saving…",
     saved: "Saved",

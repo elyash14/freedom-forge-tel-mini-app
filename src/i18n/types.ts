@@ -96,6 +96,7 @@ export type Dictionary = {
     emptyValue: string;
     labelFa: string;
     labelEn: string;
+    assetColor: string;
     save: string;
     saving: string;
     saved: string;

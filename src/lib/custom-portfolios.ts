@@ -4,6 +4,7 @@ export type CustomPortfolioDto = {
   id: string;
   name: string;
   annualReturnRate: number;
+  color: string;
   sortOrder: number;
 };
 

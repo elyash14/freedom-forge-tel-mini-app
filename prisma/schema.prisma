@@ -33,6 +33,7 @@ model AssetClass {
   key       String   @unique
   labelFa   String
   labelEn   String
+  color     String   @default("#6C9BCF")
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -76,6 +77,7 @@ model CustomPortfolio {
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name             String
   annualReturnRate Float
+  color            String   @default("#B794F6")
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

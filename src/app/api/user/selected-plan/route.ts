@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  buildAssetColorMapForUser,
   buildAssetLabelMap,
   resolveSelectedPlanId,
 } from "@/lib/selected-plan";
@@ -29,12 +30,13 @@ export async function GET(request: NextRequest) {
   const locale = request.nextUrl.searchParams.get("locale") ?? "fa";
   const selectedPlanId = await resolveSelectedPlanId(userId);
 
-  const [externalHoldings, assetLabels] = await Promise.all([
+  const [externalHoldings, assetLabels, assetColors] = await Promise.all([
     prisma.externalHolding.findMany({
       where: { userId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
     buildAssetLabelMap(userId, locale),
+    buildAssetColorMapForUser(userId),
   ]);
 
   const externalDtos = externalHoldings.map(toExternalHoldingDto);
@@ -51,6 +53,7 @@ export async function GET(request: NextRequest) {
       plan: null,
       progress: [],
       assetLabels,
+      assetColors,
       externalHoldings: externalDtos,
       combinedBreakdown,
       totals: calculatePortfolioTotals(combinedBreakdown),
@@ -78,6 +81,7 @@ export async function GET(request: NextRequest) {
       plan: null,
       progress: [],
       assetLabels,
+      assetColors,
       externalHoldings: externalDtos,
       combinedBreakdown: buildCombinedBreakdown([], externalDtos, assetLabels),
       totals: calculatePortfolioTotals(
@@ -106,6 +110,7 @@ export async function GET(request: NextRequest) {
     plan,
     progress: progressRecords,
     assetLabels,
+    assetColors,
     externalHoldings: externalDtos,
     combinedBreakdown,
     totals: calculatePortfolioTotals(combinedBreakdown),

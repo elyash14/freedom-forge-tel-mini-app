@@ -5,16 +5,19 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
+  Cell,
   Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Wallet } from "lucide-react";
 
 import { useTelegram } from "@/components/telegram/telegram-provider";
 import { useTelegramBackButton } from "@/components/telegram/use-telegram-back-button";
@@ -26,19 +29,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { NumericInput } from "@/components/ui/numeric-input";
 import type { Locale } from "@/i18n/config";
-import { getDictionary } from "@/i18n/get-dictionary";
 import type { Dictionary } from "@/i18n/types";
+import { buildAssetColorMap, resolveAssetColor } from "@/lib/asset-colors";
 import {
   buildNominalYearlyProjection,
   type PortfolioAllocation,
@@ -49,8 +45,11 @@ import {
   calculateExpectedInflation,
   type HistoricalReturnRow,
 } from "@/lib/historical-returns";
-import { cn } from "@/lib/utils";
-import { customPortfolioKey } from "@/lib/custom-portfolios";
+import {
+  customPortfolioKey,
+  isCustomPortfolioKey,
+} from "@/lib/custom-portfolios";
+import { buildAssetBreakdown } from "@/lib/home-stats";
 import { parseLocalizedNumber } from "@/lib/numeric-input";
 
 type FreedomPlanDto = {
@@ -170,8 +169,16 @@ function getPlannedCapitalAtMonth(
   return previousCapital + monthlyGrowth * month;
 }
 
+type AssetGroup = {
+  id: "standard" | "custom";
+  title: string;
+  items: { key: string; label: string; value: number }[];
+};
+
 export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps) {
   const p = dictionary.planDashboard;
+  const h = dictionary.home;
+  const ea = dictionary.externalAssets;
   const { isTelegram } = useTelegram();
   const router = useRouter();
   const plansHref = `/${locale}/plans`;
@@ -197,6 +204,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
 
   // Asset classes lookup
   const [assetClasses, setAssetClasses] = useState<Record<string, string>>({});
+  const [assetColors, setAssetColors] = useState<Record<string, string>>({});
 
   const loadData = useCallback(async () => {
     try {
@@ -222,25 +230,40 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
         setHistoricalData(data);
       }
       const lookup: Record<string, string> = {};
+      const colorSources: Parameters<typeof buildAssetColorMap>[0] = [];
+      const customColorSources: Parameters<typeof buildAssetColorMap>[1] = [];
 
       if (assetClassesRes.ok) {
         const data = await assetClassesRes.json();
-        data.forEach((a: { key: string; labelFa: string; labelEn: string }) => {
-          lookup[a.key] = locale === "fa" ? a.labelFa : a.labelEn;
-        });
+        data.forEach(
+          (a: {
+            key: string;
+            labelFa: string;
+            labelEn: string;
+            color: string;
+          }) => {
+            lookup[a.key] = locale === "fa" ? a.labelFa : a.labelEn;
+            colorSources.push({ key: a.key, color: a.color });
+          },
+        );
       }
 
-      if (customRes.ok) {
+      if (customRes?.ok) {
         const data = (await customRes.json()) as {
-          portfolios: { id: string; name: string }[];
+          portfolios: { id: string; name: string; color: string }[];
         };
         for (const portfolio of data.portfolios) {
           lookup[customPortfolioKey(portfolio.id)] = portfolio.name;
+          customColorSources.push({
+            id: portfolio.id,
+            color: portfolio.color,
+          });
         }
       }
 
-      if (assetClassesRes.ok || customRes.ok) {
+      if (assetClassesRes.ok || customRes?.ok) {
         setAssetClasses(lookup);
+        setAssetColors(buildAssetColorMap(colorSources, customColorSources));
       }
     } finally {
       setIsLoading(false);
@@ -382,6 +405,71 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
     return data.filter(d => d.year === 0 || d.year <= chartRange[0]);
   }, [plan, projectionRows, progress, maxYear, chartRange]);
 
+  const latestProgress = useMemo(() => progress.at(-1) ?? null, [progress]);
+
+  const currentTotal = useMemo(() => {
+    if (latestProgress) {
+      return latestProgress.totalValue;
+    }
+
+    return plan?.initialCapital ?? 0;
+  }, [latestProgress, plan]);
+
+  const assetBreakdown = useMemo(() => {
+    if (!plan) {
+      return [];
+    }
+
+    return buildAssetBreakdown(
+      latestProgress?.assetDetails,
+      plan.assetCapitals,
+      assetClasses,
+    );
+  }, [plan, latestProgress, assetClasses]);
+
+  const pieData = useMemo(
+    () =>
+      assetBreakdown.map((item) => ({
+        name: item.label,
+        value: item.value,
+        key: item.key,
+      })),
+    [assetBreakdown],
+  );
+
+  const groupedAssets = useMemo((): AssetGroup[] => {
+    const standard: AssetGroup["items"] = [];
+    const custom: AssetGroup["items"] = [];
+
+    for (const item of assetBreakdown) {
+      if (isCustomPortfolioKey(item.key)) {
+        custom.push(item);
+      } else {
+        standard.push(item);
+      }
+    }
+
+    const groups: AssetGroup[] = [
+      { id: "standard", title: ea.standardSection, items: standard },
+      { id: "custom", title: ea.customSection, items: custom },
+    ];
+
+    return groups.filter((group) => group.items.length > 0);
+  }, [assetBreakdown, ea.standardSection, ea.customSection]);
+
+  const progressPercent = useMemo(() => {
+    if (!plan || plan.targetCapital <= 0) {
+      return 0;
+    }
+
+    return Math.min(100, Math.round((currentTotal / plan.targetCapital) * 100));
+  }, [plan, currentTotal]);
+
+  const breakdownTotal = useMemo(
+    () => assetBreakdown.reduce((sum, item) => sum + item.value, 0),
+    [assetBreakdown],
+  );
+
   function parseAssetInputNumber(value: string): number {
     return parseLocalizedNumber(value) ?? 0;
   }
@@ -501,250 +589,392 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
   }
 
   return (
-    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-8 pb-[calc(8rem+env(safe-area-inset-bottom))]">
-      <header className="space-y-4">
-        <h1 className="text-3xl font-bold tracking-tight">{p.title}</h1>
+    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-5 px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
+      <header className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">{p.title}</h1>
         {!isTelegram && (
           <Link
             href={plansHref}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+            className="text-sm font-medium text-[var(--tg-theme-link-color,var(--primary))]"
           >
             {p.backToPlans}
           </Link>
         )}
       </header>
 
-      <div className="flex flex-col gap-6">
-        <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
-          <CardContent className="flex items-center justify-between p-6">
-            <div>
-              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                {p.targetCapital}
-              </p>
-              <p className="text-2xl font-bold tabular-nums text-emerald-900 dark:text-emerald-100">
-                {formatTomanCompact(plan.targetCapital, locale)} {p.toman}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                {p.yearsToFreedom}
-              </p>
-              <p className="text-2xl font-bold tabular-nums text-emerald-900 dark:text-emerald-100">
-                <span dir="ltr">{formatYears(plan.yearsToFreedom, locale)}</span>{" "}
-                {p.yearsUnit}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#6C9BCF]/15 via-[#7DD3C0]/10 to-[#E8B86D]/15 p-5 ring-1 ring-[var(--tg-theme-secondary-bg-color,var(--border))]">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#6C9BCF]/20 text-[#6C9BCF]">
+            <Wallet className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-zinc-500">{p.totalValueLabel}</p>
+            <p className="text-2xl font-bold tabular-nums tracking-tight">
+              {formatTomanCompact(currentTotal, locale)}{" "}
+              <span className="text-base font-medium text-zinc-500">
+                {p.toman}
+              </span>
+            </p>
+          </div>
+          <div className="text-end">
+            <p className="text-xs text-zinc-500">{p.yearsToFreedom}</p>
+            <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              <span dir="ltr">{formatYears(plan.yearsToFreedom, locale)}</span>
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between text-xs text-zinc-500">
+            <span>{p.targetCapital}</span>
+            <span className="tabular-nums">
+              {formatTomanCompact(plan.targetCapital, locale)} {p.toman}
+            </span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/60 dark:bg-zinc-900/40">
+            <div
+              className="h-full rounded-full bg-[#6C9BCF] transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <p className="text-end text-[10px] font-medium tabular-nums text-zinc-500">
+            {progressPercent}%
+          </p>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-white/60 px-3 py-2 dark:bg-zinc-900/40">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+              {p.monthlyContribution}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold tabular-nums">
+              {formatTomanCompact(plan.monthlyContribution, locale)}
+            </p>
+          </div>
+          <div className="rounded-xl bg-white/60 px-3 py-2 dark:bg-zinc-900/40">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+              {p.colContribution}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold tabular-nums">
+              {latestProgress
+                ? formatTomanCompact(latestProgress.contribution, locale)
+                : "—"}
+            </p>
+          </div>
+        </div>
+      </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <CardTitle>{p.chartTitle}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3 pb-2">
-              <div className="flex items-center justify-between text-xs text-zinc-500">
-                <Label>{p.chartRangeLabel}</Label>
-                <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {locale === "fa" 
-                    ? `تا سال ${chartRange[0]}` 
-                    : `Up to year ${chartRange[0]}`}
-                </span>
-              </div>
-              <Slider
-                min={1}
-                max={maxYear}
-                step={1}
-                value={[chartRange[0]]}
-                onValueChange={(val) => setChartRange([val[0], maxYear])}
-                className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
-              />
-            </div>
-            
-            <div className="relative -mx-6 h-80 min-w-0 w-auto px-1 sm:mx-0 sm:w-full sm:px-0">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <LineChart
-                  data={chartData}
-                  margin={{
-                    top: 12,
-                    right: locale === "fa" ? 4 : 8,
-                    left: locale === "fa" ? 8 : 4,
-                    bottom: 4,
-                  }}
+      {pieData.length > 0 && (
+        <section className="rounded-2xl border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-section-bg-color,var(--card))] p-4">
+          <h2 className="mb-1 text-sm font-semibold">{h.assetsBreakdown}</h2>
+          {progress.length === 0 && (
+            <p className="mb-3 text-xs text-zinc-500">{p.noProgress}</p>
+          )}
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  cornerRadius={6}
+                  innerRadius={56}
+                  outerRadius={88}
+                  paddingAngle={3}
+                  stroke="none"
                 >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="var(--tg-theme-secondary-bg-color, #e5e7eb)"
-                  />
-                  <XAxis
-                    dataKey="time"
-                    type="number"
-                    domain={["dataMin", "dataMax"]}
-                    allowDecimals={false}
-                    ticks={chartData.map((point) => point.time)}
-                    tickFormatter={(time) => {
-                      const point = chartData.find((item) => item.time === time);
-                      return point?.label ?? String(time);
-                    }}
-                    padding={{ left: 0, right: 0 }}
-                    tick={{ fontSize: 11 }}
-                    tickMargin={8}
-                    stroke="var(--tg-theme-hint-color, #9ca3af)"
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tickFormatter={(val) => formatTomanCompact(val as number, locale)}
-                    width={locale === "fa" ? 56 : 64}
-                    tick={{ fontSize: 11 }}
-                    tickMargin={4}
-                    stroke="var(--tg-theme-hint-color, #9ca3af)"
-                    orientation={locale === "fa" ? "right" : "left"}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    labelFormatter={(time) => {
-                      const point = chartData.find((item) => item.time === time);
-                      return point?.label ?? String(time);
-                    }}
-                    formatter={(value) => [
-                      `${formatTomanCompact(Number(value ?? 0), locale)} ${p.toman}`,
-                      "",
-                    ]}
-                    contentStyle={{
-                      borderRadius: "10px",
-                      border:
-                        "1px solid var(--tg-theme-secondary-bg-color, #e5e7eb)",
-                      background: "var(--tg-theme-section-bg-color, #fff)",
-                      color: "var(--tg-theme-text-color, #111)",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Legend
-                    iconType="line"
-                    iconSize={14}
-                    wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="planned"
-                    name={p.chartPlanned}
-                    stroke="#94a3b8"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                    connectNulls
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="actual"
-                    name={p.chartActual}
-                    stroke="#10b981"
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
-                    activeDot={{ r: 6 }}
-                    connectNulls
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+                      {pieData.map((entry) => (
+                        <Cell
+                          key={entry.key}
+                          fill={resolveAssetColor(entry.key, assetColors)}
+                        />
+                      ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background:
+                      "var(--tg-theme-section-bg-color, var(--card))",
+                    border:
+                      "1px solid var(--tg-theme-secondary-bg-color, var(--border))",
+                    borderRadius: "10px",
+                    fontSize: "12px",
+                    color: "var(--tg-theme-text-color, var(--foreground))",
+                  }}
+                  formatter={(value) =>
+                    `${formatTomanCompact(Number(value), locale)} ${p.toman}`
+                  }
+                />
+                <Legend
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{p.logTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {progress.length === 0 ? (
-              <p className="text-sm text-zinc-500">{p.noProgress}</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-start text-xs text-zinc-500">
-                      <th className="py-2 pe-2">{p.colYear}</th>
-                      <th className="py-2 pe-2">{p.colMonth}</th>
-                      <th className="py-2 pe-2">{p.colContribution}</th>
-                      <th className="py-2 pe-2">{p.colPlannedContribution}</th>
-                      <th className="py-2 pe-2">{p.colTotalValue}</th>
-                      <th className="py-2 pe-2">{p.colPlannedCapital}</th>
-                      <th className="py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {progress.map((prog) => {
-                      const plannedContribution = getPlannedMonthlyContribution(
-                        projectionRows,
-                        prog.year,
-                      );
-                      const plannedCapital = plan
-                        ? getPlannedCapitalAtMonth(
-                            plan.initialCapital,
-                            projectionRows,
-                            prog.year,
-                            prog.month,
-                          )
-                        : null;
+      {groupedAssets.length > 0 && (
+        <section className="space-y-4">
+          {groupedAssets.map((group) => (
+            <div key={group.id} className="space-y-2">
+              <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                {group.title}
+              </h2>
+              <div className="space-y-2">
+                {group.items.map((item) => {
+                  const color = resolveAssetColor(item.key, assetColors);
+                  const share =
+                    breakdownTotal > 0
+                      ? Math.round((item.value / breakdownTotal) * 100)
+                      : 0;
 
-                      return (
-                      <tr key={prog.id} className="border-b border-zinc-100 dark:border-zinc-800">
-                        <td className="py-2 pe-2 tabular-nums">{prog.year}</td>
-                        <td className="py-2 pe-2 tabular-nums">{prog.month}</td>
-                        <td className="py-2 pe-2 tabular-nums">
-                          {formatTomanCompact(prog.contribution, locale)}
-                        </td>
-                        <td className="py-2 pe-2 tabular-nums text-zinc-500">
-                          {plannedContribution != null
-                            ? formatTomanCompact(plannedContribution, locale)
-                            : "—"}
-                        </td>
-                        <td className="py-2 pe-2 tabular-nums font-medium">
-                          {formatTomanCompact(prog.totalValue, locale)}
-                        </td>
-                        <td className="py-2 pe-2 tabular-nums text-zinc-500">
-                          {plannedCapital != null
-                            ? formatTomanCompact(plannedCapital, locale)
-                            : "—"}
-                        </td>
-                        <td className="py-2 text-right">
-                          <Button
-                            variant="outline"
-                            className="h-8 w-8 p-0 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400"
-                            onClick={() => void deleteProgress(prog.id)}
-                            title={p.delete}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                  return (
+                    <div
+                      key={item.key}
+                      className="rounded-2xl border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-section-bg-color,var(--card))] p-3.5"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                          style={{ backgroundColor: `${color}22` }}
+                        >
+                          <div
+                            className="h-3 w-3 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate font-medium">{item.label}</p>
+                            <span className="shrink-0 text-xs tabular-nums text-zinc-500">
+                              {share}%
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-lg font-semibold tabular-nums">
+                            {formatTomanCompact(item.value, locale)}{" "}
+                            <span className="text-sm font-normal text-zinc-500">
+                              {p.toman}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <section className="rounded-2xl border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-section-bg-color,var(--card))] p-4">
+        <h2 className="mb-3 text-sm font-semibold">{p.chartTitle}</h2>
+        <div className="space-y-3 pb-2">
+          <div className="flex items-center justify-between text-xs text-zinc-500">
+            <Label>{p.chartRangeLabel}</Label>
+            <span className="font-medium tabular-nums">
+              {locale === "fa"
+                ? `تا سال ${chartRange[0]}`
+                : `Up to year ${chartRange[0]}`}
+            </span>
+          </div>
+          <Slider
+            min={1}
+            max={maxYear}
+            step={1}
+            value={[chartRange[0]]}
+            onValueChange={(val) => setChartRange([val[0], maxYear])}
+            className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
+          />
+        </div>
+        <div className="relative -mx-2 h-72 min-w-0 w-auto sm:mx-0 sm:w-full">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <LineChart
+              data={chartData}
+              margin={{
+                top: 12,
+                right: locale === "fa" ? 4 : 8,
+                left: locale === "fa" ? 8 : 4,
+                bottom: 4,
+              }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="var(--tg-theme-secondary-bg-color, #e5e7eb)"
+              />
+              <XAxis
+                dataKey="time"
+                type="number"
+                domain={["dataMin", "dataMax"]}
+                allowDecimals={false}
+                ticks={chartData.map((point) => point.time)}
+                tickFormatter={(time) => {
+                  const point = chartData.find((item) => item.time === time);
+                  return point?.label ?? String(time);
+                }}
+                padding={{ left: 0, right: 0 }}
+                tick={{ fontSize: 11 }}
+                tickMargin={8}
+                stroke="var(--tg-theme-hint-color, #9ca3af)"
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={(val) =>
+                  formatTomanCompact(val as number, locale)
+                }
+                width={locale === "fa" ? 56 : 64}
+                tick={{ fontSize: 11 }}
+                tickMargin={4}
+                stroke="var(--tg-theme-hint-color, #9ca3af)"
+                orientation={locale === "fa" ? "right" : "left"}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                labelFormatter={(time) => {
+                  const point = chartData.find((item) => item.time === time);
+                  return point?.label ?? String(time);
+                }}
+                formatter={(value) => [
+                  `${formatTomanCompact(Number(value ?? 0), locale)} ${p.toman}`,
+                  "",
+                ]}
+                contentStyle={{
+                  borderRadius: "10px",
+                  border:
+                    "1px solid var(--tg-theme-secondary-bg-color, #e5e7eb)",
+                  background: "var(--tg-theme-section-bg-color, #fff)",
+                  color: "var(--tg-theme-text-color, #111)",
+                  fontSize: "12px",
+                }}
+              />
+              <Legend
+                iconType="line"
+                iconSize={14}
+                wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="planned"
+                name={p.chartPlanned}
+                stroke="#94a3b8"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={false}
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="actual"
+                name={p.chartActual}
+                stroke="#10b981"
+                strokeWidth={3}
+                dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
+                activeDot={{ r: 6 }}
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="space-y-3 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] pt-5">
+        <h2 className="text-sm font-semibold text-zinc-500">{p.logTitle}</h2>
+        {progress.length === 0 ? (
+          <p className="text-sm text-zinc-500">{p.noProgress}</p>
+        ) : (
+          <div className="space-y-2">
+            {[...progress].reverse().map((prog) => {
+              const plannedContribution = getPlannedMonthlyContribution(
+                projectionRows,
+                prog.year,
+              );
+              const plannedCapital = getPlannedCapitalAtMonth(
+                plan.initialCapital,
+                projectionRows,
+                prog.year,
+                prog.month,
+              );
+
+              return (
+                <div
+                  key={prog.id}
+                  className="rounded-2xl border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-section-bg-color,var(--card))] p-3.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium tabular-nums">
+                        {p.colYear} {prog.year} · {p.colMonth} {prog.month}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {formatTomanCompact(prog.totalValue, locale)}{" "}
+                        <span className="text-sm font-normal text-zinc-500">
+                          {p.toman}
+                        </span>
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 w-9 shrink-0 px-0 text-red-500"
+                      onClick={() => void deleteProgress(prog.id)}
+                      aria-label={p.delete}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-zinc-900/50">
+                      <p className="text-zinc-500">{p.colContribution}</p>
+                      <p className="mt-0.5 font-semibold tabular-nums">
+                        {formatTomanCompact(prog.contribution, locale)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-zinc-900/50">
+                      <p className="text-zinc-500">{p.colPlannedContribution}</p>
+                      <p className="mt-0.5 font-semibold tabular-nums text-zinc-500">
+                        {plannedContribution != null
+                          ? formatTomanCompact(plannedContribution, locale)
+                          : "—"}
+                      </p>
+                    </div>
+                    <div className="col-span-2 rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-zinc-900/50">
+                      <p className="text-zinc-500">{p.colPlannedCapital}</p>
+                      <p className="mt-0.5 font-semibold tabular-nums text-zinc-500">
+                        {plannedCapital != null
+                          ? formatTomanCompact(plannedCapital, locale)
+                          : "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="flex justify-center pt-2">
           <Button
+            type="button"
             variant="outline"
             disabled={isDeletingPlan}
             onClick={() => void deletePlan()}
-            className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
+            className="text-red-600 dark:text-red-400"
           >
-            <Trash2 className="me-2 size-4" />
+            <Trash2 className="me-2 h-4 w-4" />
             {p.deletePlan}
           </Button>
         </div>
-      </div>
+      </section>
 
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-bg-color,var(--background))] p-3 sm:hidden">
         {isDrawerOpen ? (
           <Button
+            type="button"
             className="h-12 w-full"
             disabled={!canSaveProgress || saveState === "saving"}
             onClick={() => void saveProgress()}
@@ -756,7 +986,11 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
                 : p.saveProgress}
           </Button>
         ) : (
-          <Button className="h-12 w-full" onClick={() => setIsDrawerOpen(true)}>
+          <Button
+            type="button"
+            className="h-12 w-full"
+            onClick={() => setIsDrawerOpen(true)}
+          >
             <Plus className="me-2 h-5 w-5" />
             {p.addProgressTitle}
           </Button>
@@ -765,7 +999,8 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
 
       <div className="hidden sm:block">
         <Button
-          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] end-8 z-40 h-14 rounded-full px-6 shadow-lg hover:shadow-xl dark:shadow-zinc-900/50"
+          type="button"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] end-8 z-40 h-14 rounded-full px-6 shadow-lg"
           onClick={() => setIsDrawerOpen(true)}
         >
           <Plus className="me-2 h-5 w-5" />
@@ -780,10 +1015,10 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
             <DrawerDescription>{p.addProgressHint}</DrawerDescription>
           </DrawerHeader>
           <div className="overflow-y-auto px-4 pb-6">
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>{p.yearLabel}</Label>
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{p.yearLabel}</Label>
                   <NumericInput
                     locale={locale}
                     kind="integer"
@@ -791,8 +1026,8 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
                     onChange={setInputYear}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>{p.monthLabel}</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{p.monthLabel}</Label>
                   <NumericInput
                     locale={locale}
                     kind="integer"
@@ -802,32 +1037,59 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
                 </div>
               </div>
 
-              <div className="space-y-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-                {activeAssets.map(assetKey => {
+              <div className="space-y-3">
+                {activeAssets.map((assetKey) => {
                   const label = assetClasses[assetKey] || assetKey;
-                  const vals = assetInputs[assetKey] || { contribution: "", totalValue: "" };
+                  const vals = assetInputs[assetKey] || {
+                    contribution: "",
+                    totalValue: "",
+                  };
+                  const color = resolveAssetColor(assetKey, assetColors);
+
                   return (
-                    <div key={assetKey} className="space-y-2 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900/50">
-                      <Label className="text-sm font-semibold">{label}</Label>
+                    <div
+                      key={assetKey}
+                      className="rounded-2xl border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-section-bg-color,var(--card))] p-3.5"
+                    >
+                      <div className="mb-3 flex items-center gap-2">
+                        <div
+                          className="flex h-9 w-9 items-center justify-center rounded-lg"
+                          style={{ backgroundColor: `${color}22` }}
+                        >
+                          <div
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                        </div>
+                        <Label className="font-medium">{label}</Label>
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-xs text-zinc-500">{p.contributionLabel}</Label>
+                          <Label className="text-xs text-zinc-500">
+                            {p.contributionLabel}
+                          </Label>
                           <NumericInput
                             locale={locale}
+                            kind="money"
                             unitLabel={p.toman}
-                            placeholder="0"
                             value={vals.contribution || ""}
-                            onChange={(value) => updateAssetInput(assetKey, "contribution", value)}
+                            onChange={(value) =>
+                              updateAssetInput(assetKey, "contribution", value)
+                            }
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs text-zinc-500">{p.totalValueLabel}</Label>
+                          <Label className="text-xs text-zinc-500">
+                            {p.totalValueLabel}
+                          </Label>
                           <NumericInput
                             locale={locale}
+                            kind="money"
                             unitLabel={p.toman}
-                            placeholder="0"
                             value={vals.totalValue || ""}
-                            onChange={(value) => updateAssetInput(assetKey, "totalValue", value)}
+                            onChange={(value) =>
+                              updateAssetInput(assetKey, "totalValue", value)
+                            }
                           />
                         </div>
                       </div>
@@ -836,21 +1098,31 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
                 })}
               </div>
 
-              <div className="space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+              <div className="rounded-xl bg-zinc-50 p-3 dark:bg-zinc-900/50">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500">{p.overallTotalLabel} {p.contributionLabel}</span>
-                  <span className="font-medium tabular-nums">{formatTomanCompact(totalContribution, locale)} {p.toman}</span>
+                  <span className="text-zinc-500">
+                    {p.overallTotalLabel} {p.contributionLabel}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {formatTomanCompact(totalContribution, locale)} {p.toman}
+                  </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500">{p.overallTotalLabel} {p.totalValueLabel}</span>
-                  <span className="font-medium tabular-nums">{formatTomanCompact(totalValue, locale)} {p.toman}</span>
+                <div className="mt-2 flex justify-between text-sm">
+                  <span className="text-zinc-500">
+                    {p.overallTotalLabel} {p.totalValueLabel}
+                  </span>
+                  <span className="font-semibold tabular-nums">
+                    {formatTomanCompact(totalValue, locale)} {p.toman}
+                  </span>
                 </div>
               </div>
 
               <Button
+                type="button"
                 className="hidden h-12 w-full sm:flex"
                 disabled={
-                  totalContribution === 0 && totalValue === 0 || saveState === "saving"
+                  (totalContribution === 0 && totalValue === 0) ||
+                  saveState === "saving"
                 }
                 onClick={() => void saveProgress()}
               >

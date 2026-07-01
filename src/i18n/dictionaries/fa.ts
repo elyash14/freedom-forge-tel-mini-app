@@ -176,6 +176,7 @@ export const fa = {
     emptyValue: "—",
     labelFa: "نام فارسی",
     labelEn: "نام انگلیسی",
+    assetColor: "رنگ",
     save: "ذخیره",
     saving: "در حال ذخیره…",
     saved: "ذخیره شد",

@@ -1,4 +1,5 @@
 import { customPortfolioKey } from "@/lib/custom-portfolios";
+import { buildAssetColorMap } from "@/lib/asset-colors";
 import { prisma } from "@/lib/prisma";
 
 export async function resolveSelectedPlanId(userId: string): Promise<string | null> {
@@ -68,4 +69,23 @@ export async function buildAssetLabelMap(
   }
 
   return labels;
+}
+
+export async function buildAssetColorMapForUser(
+  userId: string,
+): Promise<Record<string, string>> {
+  const [assetClasses, customPortfolios] = await Promise.all([
+    prisma.assetClass.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: { key: true, color: true },
+    }),
+    prisma.customPortfolio.findMany({
+      where: { userId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { id: true, color: true },
+    }),
+  ]);
+
+  return buildAssetColorMap(assetClasses, customPortfolios);
 }

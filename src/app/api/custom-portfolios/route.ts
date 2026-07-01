@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import type { CustomPortfolioDto } from "@/lib/custom-portfolios";
+import { defaultColorForIndex, isValidHexColor } from "@/lib/asset-colors";
 import { prisma } from "@/lib/prisma";
 import {
   getUserIdFromRequest,
@@ -10,18 +11,21 @@ import {
 type CreateCustomPortfolioBody = {
   name?: string;
   annualReturnRate?: number;
+  color?: string;
 };
 
 function toDto(portfolio: {
   id: string;
   name: string;
   annualReturnRate: number;
+  color: string;
   sortOrder: number;
 }): CustomPortfolioDto {
   return {
     id: portfolio.id,
     name: portfolio.name,
     annualReturnRate: portfolio.annualReturnRate,
+    color: portfolio.color,
     sortOrder: portfolio.sortOrder,
   };
 }
@@ -63,12 +67,17 @@ export async function POST(request: NextRequest) {
   }
 
   const count = await prisma.customPortfolio.count({ where: { userId } });
+  const color =
+    body.color && isValidHexColor(body.color)
+      ? body.color
+      : defaultColorForIndex(count);
 
   const portfolio = await prisma.customPortfolio.create({
     data: {
       userId,
       name,
       annualReturnRate,
+      color,
       sortOrder: count,
     },
   });

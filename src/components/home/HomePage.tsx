@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/drawer";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
-import { ASSET_COLORS, colorForKey } from "@/lib/asset-colors";
+import { resolveAssetColor } from "@/lib/asset-colors";
 import { isCustomPortfolioKey } from "@/lib/custom-portfolios";
 import { isFreeformExternalKey } from "@/lib/external-holdings";
 import { formatTomanCompact, formatYears } from "@/lib/freedom-format";
@@ -77,6 +77,7 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
   const [combinedBreakdown, setCombinedBreakdown] = useState<
     CombinedBreakdownItem[]
   >([]);
+  const [assetColors, setAssetColors] = useState<Record<string, string>>({});
   const [totals, setTotals] = useState<PortfolioTotals>({
     planTotal: 0,
     externalTotal: 0,
@@ -105,6 +106,7 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
       setPlan(homeData.plan ?? null);
       setProgress(homeData.progress ?? []);
       setCombinedBreakdown(homeData.combinedBreakdown ?? []);
+      setAssetColors(homeData.assetColors ?? {});
       setTotals(
         homeData.totals ?? {
           planTotal: 0,
@@ -310,10 +312,10 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
                       paddingAngle={3}
                       stroke="none"
                     >
-                      {pieData.map((entry, index) => (
+                      {pieData.map((entry) => (
                         <Cell
                           key={entry.key}
-                          fill={ASSET_COLORS[index % ASSET_COLORS.length]}
+                          fill={resolveAssetColor(entry.key, assetColors)}
                         />
                       ))}
                     </Pie>
@@ -350,7 +352,7 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
                 </h2>
                 <div className="space-y-2">
                   {group.items.map((item) => {
-                    const color = colorForKey(item.key);
+                    const color = resolveAssetColor(item.key, assetColors);
                     const share =
                       totals.grandTotal > 0
                         ? Math.round((item.totalValue / totals.grandTotal) * 100)
