@@ -474,10 +474,10 @@ export function ExternalAssetsPage({
 
             {drawerMode === "add" && (
               <div className="space-y-4">
-                <p className="text-sm font-medium">{e.selectBasket}</p>
+                <p className="text-sm font-medium">{e.selectAsset}</p>
 
                 {availableBaskets.length === 0 ? (
-                  <p className="text-sm text-zinc-500">{e.noBasketsLeft}</p>
+                  <p className="text-sm text-zinc-500">{e.noAssetsLeft}</p>
                 ) : (
                   <>
                     {availableStandard.length > 0 && (

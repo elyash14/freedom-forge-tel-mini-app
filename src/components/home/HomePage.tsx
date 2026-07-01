@@ -19,6 +19,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import { resolveAssetColor } from "@/lib/asset-colors";
@@ -69,6 +70,82 @@ type HomePageProps = {
 const PLAN_CHIP_COLOR = "#6C9BCF";
 const EXTERNAL_CHIP_COLOR = "#E8B86D";
 
+type PieDatum = {
+  name: string;
+  value: number;
+  key: string;
+};
+
+type BreakdownTab = "total" | "in-plan" | "out-of-plan";
+
+function BreakdownPieChart({
+  data,
+  assetColors,
+  locale,
+  tomanLabel,
+  emptyLabel,
+}: {
+  data: PieDatum[];
+  assetColors: Record<string, string>;
+  locale: Locale;
+  tomanLabel: string;
+  emptyLabel: string;
+}) {
+  if (data.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center px-4 text-center text-sm text-zinc-500">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-64 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            cornerRadius={6}
+            innerRadius={56}
+            outerRadius={88}
+            paddingAngle={3}
+            stroke="none"
+          >
+            {data.map((entry) => (
+              <Cell
+                key={entry.key}
+                fill={resolveAssetColor(entry.key, assetColors)}
+              />
+            ))}
+          </Pie>
+          <Tooltip
+            contentStyle={{
+              background: "var(--tg-theme-section-bg-color, var(--card))",
+              border:
+                "1px solid var(--tg-theme-secondary-bg-color, var(--border))",
+              borderRadius: "10px",
+              fontSize: "12px",
+              color: "var(--tg-theme-text-color, var(--foreground))",
+            }}
+            formatter={(value) =>
+              `${formatTomanCompact(Number(value), locale)} ${tomanLabel}`
+            }
+          />
+          <Legend
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export function HomePage({ locale, dictionary }: HomePageProps) {
   const h = dictionary.home;
   const ea = dictionary.externalAssets;
@@ -89,6 +166,7 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isPlanPickerOpen, setIsPlanPickerOpen] = useState(false);
   const [isSelectingPlan, setIsSelectingPlan] = useState(false);
+  const [breakdownTab, setBreakdownTab] = useState<BreakdownTab>("total");
 
   const loadHome = useCallback(async () => {
     try {
@@ -147,15 +225,37 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
     return calculateRemainingMonths(plan.yearsToFreedom, elapsedMonths);
   }, [plan, elapsedMonths]);
 
-  const pieData = useMemo(
-    () =>
-      combinedBreakdown.map((item) => ({
-        name: item.label,
-        value: item.totalValue,
-        key: item.key,
-      })),
+  const pieDataByTab = useMemo(
+    () => ({
+      total: combinedBreakdown
+        .filter((item) => item.totalValue > 0)
+        .map((item) => ({
+          name: item.label,
+          value: item.totalValue,
+          key: item.key,
+        })),
+      "in-plan": combinedBreakdown
+        .filter((item) => item.planValue > 0)
+        .map((item) => ({
+          name: item.label,
+          value: item.planValue,
+          key: item.key,
+        })),
+      "out-of-plan": combinedBreakdown
+        .filter((item) => item.externalValue > 0)
+        .map((item) => ({
+          name: item.label,
+          value: item.externalValue,
+          key: item.key,
+        })),
+    }),
     [combinedBreakdown],
   );
+
+  const hasAnyChartData =
+    pieDataByTab.total.length > 0 ||
+    pieDataByTab["in-plan"].length > 0 ||
+    pieDataByTab["out-of-plan"].length > 0;
 
   const groupedAssets = useMemo((): AssetGroup[] => {
     const standard: CombinedBreakdownItem[] = [];
@@ -291,56 +391,56 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
             </div>
           </div>
 
-          {pieData.length > 0 && (
+          {hasAnyChartData && (
             <section className="rounded-2xl border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-section-bg-color,var(--card))] p-4">
-              <h2 className="mb-1 text-sm font-semibold">{h.assetsBreakdown}</h2>
+              <h2 className="mb-3 text-sm font-semibold">{h.assetsBreakdown}</h2>
               {!hasProgress && plan && (
                 <p className="mb-3 text-xs text-zinc-500">{h.noProgress}</p>
               )}
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      cornerRadius={6}
-                      innerRadius={56}
-                      outerRadius={88}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {pieData.map((entry) => (
-                        <Cell
-                          key={entry.key}
-                          fill={resolveAssetColor(entry.key, assetColors)}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background:
-                          "var(--tg-theme-section-bg-color, var(--card))",
-                        border:
-                          "1px solid var(--tg-theme-secondary-bg-color, var(--border))",
-                        borderRadius: "10px",
-                        fontSize: "12px",
-                        color: "var(--tg-theme-text-color, var(--foreground))",
-                      }}
-                      formatter={(value) =>
-                        `${formatTomanCompact(Number(value), locale)} ${h.toman}`
-                      }
-                    />
-                    <Legend
-                      iconType="circle"
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <Tabs
+                value={breakdownTab}
+                onValueChange={(value) => setBreakdownTab(value as BreakdownTab)}
+                className="space-y-3"
+              >
+                <TabsList aria-label={h.assetsBreakdown} className="w-full">
+                  <TabsTrigger value="total" className="flex-1">
+                    {h.grandTotal}
+                  </TabsTrigger>
+                  <TabsTrigger value="in-plan" className="flex-1">
+                    {h.inPlan}
+                  </TabsTrigger>
+                  <TabsTrigger value="out-of-plan" className="flex-1">
+                    {h.outOfPlan}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="total">
+                  <BreakdownPieChart
+                    data={pieDataByTab.total}
+                    assetColors={assetColors}
+                    locale={locale}
+                    tomanLabel={h.toman}
+                    emptyLabel={h.noAssets}
+                  />
+                </TabsContent>
+                <TabsContent value="in-plan">
+                  <BreakdownPieChart
+                    data={pieDataByTab["in-plan"]}
+                    assetColors={assetColors}
+                    locale={locale}
+                    tomanLabel={h.toman}
+                    emptyLabel={h.noAssets}
+                  />
+                </TabsContent>
+                <TabsContent value="out-of-plan">
+                  <BreakdownPieChart
+                    data={pieDataByTab["out-of-plan"]}
+                    assetColors={assetColors}
+                    locale={locale}
+                    tomanLabel={h.toman}
+                    emptyLabel={h.noAssets}
+                  />
+                </TabsContent>
+              </Tabs>
             </section>
           )}
 

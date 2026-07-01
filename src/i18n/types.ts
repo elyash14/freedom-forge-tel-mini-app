@@ -154,7 +154,7 @@ export type Dictionary = {
     addAsset: string;
     addDrawerTitle: string;
     editDrawerTitle: string;
-    selectBasket: string;
+    selectAsset: string;
     standardSection: string;
     customSection: string;
     otherSection: string;
@@ -163,7 +163,7 @@ export type Dictionary = {
     deleteConfirm: string;
     emptyState: string;
     emptyStateHint: string;
-    noBasketsLeft: string;
+    noAssetsLeft: string;
     loadError: string;
     saveError: string;
     toman: string;
