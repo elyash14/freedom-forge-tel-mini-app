@@ -1,5 +1,5 @@
 import type { PortfolioAllocation } from "@/lib/freedom-calculator";
-import { isCustomPortfolioKey } from "@/lib/custom-portfolios";
+import { isCustomAssetKey } from "@/lib/custom-assets";
 
 export type HistoricalReturnRow = {
   year: number;
@@ -69,7 +69,7 @@ export function calculateYearNominalPortfolioReturn(
       return sum;
     }
 
-    if (isCustomPortfolioKey(key)) {
+    if (isCustomAssetKey(key)) {
       return sum + weight * (customReturns[key] ?? 0);
     }
 

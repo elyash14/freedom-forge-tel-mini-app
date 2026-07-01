@@ -46,9 +46,9 @@ import {
   type HistoricalReturnRow,
 } from "@/lib/historical-returns";
 import {
-  customPortfolioKey,
-  isCustomPortfolioKey,
-} from "@/lib/custom-portfolios";
+  customAssetKey,
+  isCustomAssetKey,
+} from "@/lib/custom-assets";
 import { buildAssetBreakdown } from "@/lib/home-stats";
 import { parseLocalizedNumber } from "@/lib/numeric-input";
 
@@ -214,7 +214,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
         fetch(`/api/plans/${planId}/progress`),
         fetch(`/api/historical-returns`),
         fetch(`/api/asset-classes`),
-        fetch(`/api/custom-portfolios`),
+        fetch(`/api/custom-assets`),
       ]);
 
       if (planRes.ok) {
@@ -250,13 +250,13 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
 
       if (customRes?.ok) {
         const data = (await customRes.json()) as {
-          portfolios: { id: string; name: string; color: string }[];
+          assets: { id: string; name: string; color: string }[];
         };
-        for (const portfolio of data.portfolios) {
-          lookup[customPortfolioKey(portfolio.id)] = portfolio.name;
+        for (const asset of data.assets) {
+          lookup[customAssetKey(asset.id)] = asset.name;
           customColorSources.push({
-            id: portfolio.id,
-            color: portfolio.color,
+            id: asset.id,
+            color: asset.color,
           });
         }
       }
@@ -442,7 +442,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
     const custom: AssetGroup["items"] = [];
 
     for (const item of assetBreakdown) {
-      if (isCustomPortfolioKey(item.key)) {
+      if (isCustomAssetKey(item.key)) {
         custom.push(item);
       } else {
         standard.push(item);

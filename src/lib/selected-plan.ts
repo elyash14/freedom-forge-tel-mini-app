@@ -1,4 +1,4 @@
-import { customPortfolioKey } from "@/lib/custom-portfolios";
+import { customAssetKey } from "@/lib/custom-assets";
 import { buildAssetColorMap } from "@/lib/asset-colors";
 import { prisma } from "@/lib/prisma";
 
@@ -47,12 +47,12 @@ export async function buildAssetLabelMap(
   userId: string,
   locale: string,
 ): Promise<Record<string, string>> {
-  const [assetClasses, customPortfolios] = await Promise.all([
+  const [assetClasses, customAssets] = await Promise.all([
     prisma.assetClass.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: "asc" },
     }),
-    prisma.customPortfolio.findMany({
+    prisma.customAsset.findMany({
       where: { userId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
@@ -64,8 +64,8 @@ export async function buildAssetLabelMap(
     labels[asset.key] = locale === "fa" ? asset.labelFa : asset.labelEn;
   }
 
-  for (const portfolio of customPortfolios) {
-    labels[customPortfolioKey(portfolio.id)] = portfolio.name;
+  for (const asset of customAssets) {
+    labels[customAssetKey(asset.id)] = asset.name;
   }
 
   return labels;
@@ -74,18 +74,18 @@ export async function buildAssetLabelMap(
 export async function buildAssetColorMapForUser(
   userId: string,
 ): Promise<Record<string, string>> {
-  const [assetClasses, customPortfolios] = await Promise.all([
+  const [assetClasses, customAssets] = await Promise.all([
     prisma.assetClass.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: "asc" },
       select: { key: true, color: true },
     }),
-    prisma.customPortfolio.findMany({
+    prisma.customAsset.findMany({
       where: { userId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       select: { id: true, color: true },
     }),
   ]);
 
-  return buildAssetColorMap(assetClasses, customPortfolios);
+  return buildAssetColorMap(assetClasses, customAssets);
 }

@@ -16,9 +16,9 @@ import { NumericInput } from "@/components/ui/numeric-input";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import {
-  customPortfolioKey,
-  isCustomPortfolioKey,
-} from "@/lib/custom-portfolios";
+  customAssetKey,
+  isCustomAssetKey,
+} from "@/lib/custom-assets";
 import type { ExternalHoldingDto } from "@/lib/external-holdings";
 import { isFreeformExternalKey } from "@/lib/external-holdings";
 import { formatTomanCompact } from "@/lib/freedom-format";
@@ -71,7 +71,7 @@ export function ExternalAssetsPage({
       const [holdingsRes, assetClassesRes, customRes] = await Promise.all([
         fetch("/api/external-holdings"),
         fetch("/api/asset-classes"),
-        fetch("/api/custom-portfolios"),
+        fetch("/api/custom-assets"),
       ]);
 
       if (!holdingsRes.ok) {
@@ -92,9 +92,9 @@ export function ExternalAssetsPage({
         : [];
       const customData = customRes?.ok
         ? ((await customRes.json()) as {
-            portfolios: { id: string; name: string; color: string }[];
+            assets: { id: string; name: string; color: string }[];
           })
-        : { portfolios: [] };
+        : { assets: [] };
 
       setStandardBaskets(
         assetClassesData.map((asset) => ({
@@ -104,9 +104,9 @@ export function ExternalAssetsPage({
         })),
       );
       setCustomBaskets(
-        customData.portfolios.map((portfolio) => ({
-          assetKey: customPortfolioKey(portfolio.id),
-          label: portfolio.name,
+        customData.assets.map((asset) => ({
+          assetKey: customAssetKey(asset.id),
+          label: asset.name,
           kind: "custom" as const,
         })),
       );
@@ -116,9 +116,9 @@ export function ExternalAssetsPage({
             key: asset.key,
             color: asset.color,
           })),
-          customData.portfolios.map((portfolio) => ({
-            id: portfolio.id,
-            color: portfolio.color,
+          customData.assets.map((asset) => ({
+            id: asset.id,
+            color: asset.color,
           })),
         ),
       );
@@ -171,7 +171,7 @@ export function ExternalAssetsPage({
     for (const holding of holdings) {
       if (isFreeformExternalKey(holding.assetKey)) {
         other.push(holding);
-      } else if (isCustomPortfolioKey(holding.assetKey)) {
+      } else if (isCustomAssetKey(holding.assetKey)) {
         custom.push(holding);
       } else {
         standard.push(holding);

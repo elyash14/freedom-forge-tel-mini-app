@@ -52,7 +52,7 @@ model User {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   freedomPlans      FreedomPlan[]      @relation("UserPlans")
-  customPortfolios  CustomPortfolio[]
+  customAssets      CustomAsset[]
   externalHoldings  ExternalHolding[]
 }
 
@@ -71,7 +71,7 @@ model ExternalHolding {
   @@index([userId])
 }
 
-model CustomPortfolio {
+model CustomAsset {
   id               String   @id @default(cuid())
   userId           String
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -29,7 +29,7 @@ export type Dictionary = {
     totalCapitalLabel: string;
     portfolioTitle: string;
     portfolioHint: string;
-    customPortfolioReturnLabel: string;
+    customAssetReturnLabel: string;
     allocationTotal: string;
     historicalDataYears: string;
     nominalReturn: string;
@@ -82,7 +82,7 @@ export type Dictionary = {
     subtitle: string;
     mainTabAssetClasses: string;
     mainTabHistoricalData: string;
-    mainTabCustomPortfolios: string;
+    mainTabCustomAssets: string;
     assetsSection: string;
     assetsHint: string;
     historicalSection: string;
@@ -102,16 +102,16 @@ export type Dictionary = {
     saved: string;
     loadError: string;
     saveError: string;
-    customPortfoliosSection: string;
-    customPortfoliosHint: string;
-    customPortfolioName: string;
-    customPortfolioReturn: string;
-    customPortfolioReturnHint: string;
-    addCustomPortfolio: string;
-    deleteCustomPortfolio: string;
-    deleteCustomPortfolioConfirm: string;
-    customPortfoliosAuthRequired: string;
-    customPortfoliosEmpty: string;
+    customAssetsSection: string;
+    customAssetsHint: string;
+    customAssetName: string;
+    customAssetReturn: string;
+    customAssetReturnHint: string;
+    addCustomAsset: string;
+    deleteCustomAsset: string;
+    deleteCustomAssetConfirm: string;
+    customAssetsAuthRequired: string;
+    customAssetsEmpty: string;
   };
   nav: {
     home: string;

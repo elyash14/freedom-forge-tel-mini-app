@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import { formatHistoricalYear } from "@/lib/freedom-format";
-import type { CustomPortfolioDto } from "@/lib/custom-portfolios";
+import { customAssetKey, type CustomAssetDto } from "@/lib/custom-assets";
 import {
   normalizeNumericString,
   parseLocalizedNumber,
@@ -95,11 +95,11 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
   const s = dictionary.settings;
   const { isAuthenticated } = useTelegram();
   const [assetClasses, setAssetClasses] = useState<AssetClassDto[]>([]);
-  const [customPortfolios, setCustomPortfolios] = useState<CustomPortfolioDto[]>(
+  const [customAssets, setCustomAssets] = useState<CustomAssetDto[]>(
     [],
   );
-  const [newPortfolioName, setNewPortfolioName] = useState("");
-  const [newPortfolioReturn, setNewPortfolioReturn] = useState("");
+  const [newAssetName, setNewAssetName] = useState("");
+  const [newAssetReturn, setNewAssetReturn] = useState("");
   const [customSaveState, setCustomSaveState] = useState<
     "idle" | "saving" | "saved"
   >("idle");
@@ -133,7 +133,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
       ];
 
       if (isAuthenticated) {
-        requests.push(fetch("/api/custom-portfolios"));
+        requests.push(fetch("/api/custom-assets"));
       }
 
       const [assetsRes, historicalRes, customRes] = await Promise.all(requests);
@@ -149,11 +149,11 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
       if (customRes?.ok) {
         const data = (await customRes.json()) as {
-          portfolios: CustomPortfolioDto[];
+          assets: CustomAssetDto[];
         };
-        setCustomPortfolios(data.portfolios);
+        setCustomAssets(data.assets);
       } else {
-        setCustomPortfolios([]);
+        setCustomAssets([]);
       }
 
       setLoadError(null);
@@ -268,12 +268,12 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     return "";
   }
 
-  function updateCustomPortfolio(
+  function updateCustomAsset(
     id: string,
     field: "name" | "annualReturnRate" | "color",
     value: string,
   ) {
-    setCustomPortfolios((items) =>
+    setCustomAssets((items) =>
       items.map((item) => {
         if (item.id !== id) {
           return item;
@@ -298,24 +298,24 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     );
   }
 
-  function getCustomPortfolioReturnInput(portfolio: CustomPortfolioDto): string {
-    const key = `custom:${portfolio.id}`;
+  function getCustomAssetReturnInput(asset: CustomAssetDto): string {
+    const key = customAssetKey(asset.id);
     if (key in pendingInputs) {
       return pendingInputs[key];
     }
 
-    return decimalToPercentInput(portfolio.annualReturnRate);
+    return decimalToPercentInput(asset.annualReturnRate);
   }
 
-  function updateCustomPortfolioReturn(id: string, rawValue: string) {
-    setPendingInputs((pending) => ({ ...pending, [`custom:${id}`]: rawValue }));
-    updateCustomPortfolio(id, "annualReturnRate", rawValue);
+  function updateCustomAssetReturn(id: string, rawValue: string) {
+    setPendingInputs((pending) => ({ ...pending, [customAssetKey(id)]: rawValue }));
+    updateCustomAsset(id, "annualReturnRate", rawValue);
   }
 
-  function commitCustomPortfolioReturn(id: string, rawValue: string) {
+  function commitCustomAssetReturn(id: string, rawValue: string) {
     setPendingInputs((pending) => {
       const next = { ...pending };
-      delete next[`custom:${id}`];
+      delete next[customAssetKey(id)];
       return next;
     });
 
@@ -324,27 +324,27 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
       return;
     }
 
-    setCustomPortfolios((items) =>
+    setCustomAssets((items) =>
       items.map((item) =>
         item.id === id ? { ...item, annualReturnRate: decimal } : item,
       ),
     );
   }
 
-  async function saveCustomPortfolios() {
+  async function saveCustomAssets() {
     setCustomSaveState("saving");
     setCustomSaveError(null);
 
     try {
       const responses = await Promise.all(
-        customPortfolios.map((portfolio) =>
-          fetch(`/api/custom-portfolios/${portfolio.id}`, {
+        customAssets.map((asset) =>
+          fetch(`/api/custom-assets/${asset.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              name: portfolio.name.trim(),
-              annualReturnRate: portfolio.annualReturnRate,
-              color: portfolio.color,
+              name: asset.name.trim(),
+              annualReturnRate: asset.annualReturnRate,
+              color: asset.color,
             }),
           }),
         ),
@@ -354,12 +354,12 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
         throw new Error("save failed");
       }
 
-      const listRes = await fetch("/api/custom-portfolios");
+      const listRes = await fetch("/api/custom-assets");
       if (listRes.ok) {
         const data = (await listRes.json()) as {
-          portfolios: CustomPortfolioDto[];
+          assets: CustomAssetDto[];
         };
-        setCustomPortfolios(data.portfolios);
+        setCustomAssets(data.assets);
       }
 
       setPendingInputs({});
@@ -371,9 +371,9 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     }
   }
 
-  async function addCustomPortfolio() {
-    const name = newPortfolioName.trim();
-    const annualReturnRate = percentInputToDecimal(newPortfolioReturn);
+  async function addCustomAsset() {
+    const name = newAssetName.trim();
+    const annualReturnRate = percentInputToDecimal(newAssetReturn);
 
     if (!name || annualReturnRate == null) {
       return;
@@ -383,7 +383,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     setCustomSaveError(null);
 
     try {
-      const res = await fetch("/api/custom-portfolios", {
+      const res = await fetch("/api/custom-assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, annualReturnRate }),
@@ -393,10 +393,10 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
         throw new Error("create failed");
       }
 
-      const data = (await res.json()) as { portfolio: CustomPortfolioDto };
-      setCustomPortfolios((items) => [...items, data.portfolio]);
-      setNewPortfolioName("");
-      setNewPortfolioReturn("");
+      const data = (await res.json()) as { asset: CustomAssetDto };
+      setCustomAssets((items) => [...items, data.asset]);
+      setNewAssetName("");
+      setNewAssetReturn("");
       setCustomSaveState("idle");
     } catch {
       setCustomSaveError(s.saveError);
@@ -404,13 +404,13 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
     }
   }
 
-  async function deleteCustomPortfolio(id: string) {
-    if (!confirm(s.deleteCustomPortfolioConfirm)) {
+  async function deleteCustomAsset(id: string) {
+    if (!confirm(s.deleteCustomAssetConfirm)) {
       return;
     }
 
     try {
-      const res = await fetch(`/api/custom-portfolios/${id}`, {
+      const res = await fetch(`/api/custom-assets/${id}`, {
         method: "DELETE",
       });
 
@@ -418,7 +418,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
         throw new Error("delete failed");
       }
 
-      setCustomPortfolios((items) => items.filter((item) => item.id !== id));
+      setCustomAssets((items) => items.filter((item) => item.id !== id));
     } catch {
       setCustomSaveError(s.saveError);
     }
@@ -562,7 +562,7 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                 value="custom"
                 className="py-2.5 text-sm sm:text-base"
               >
-                {s.mainTabCustomPortfolios}
+                {s.mainTabCustomAssets}
               </TabsTrigger>
             </TabsList>
 
@@ -678,13 +678,13 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
 
             <TabsContent value="custom" className="space-y-4">
               <div className="space-y-1">
-                <h2 className="text-lg font-semibold">{s.customPortfoliosSection}</h2>
-                <p className="text-sm text-zinc-500">{s.customPortfoliosHint}</p>
+                <h2 className="text-lg font-semibold">{s.customAssetsSection}</h2>
+                <p className="text-sm text-zinc-500">{s.customAssetsHint}</p>
               </div>
 
               {!isAuthenticated ? (
                 <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
-                  {s.customPortfoliosAuthRequired}
+                  {s.customAssetsAuthRequired}
                 </p>
               ) : (
                 <>
@@ -694,13 +694,13 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                     </p>
                   )}
 
-                  {customPortfolios.length === 0 ? (
-                    <p className="text-sm text-zinc-500">{s.customPortfoliosEmpty}</p>
+                  {customAssets.length === 0 ? (
+                    <p className="text-sm text-zinc-500">{s.customAssetsEmpty}</p>
                   ) : (
                     <div className="space-y-3">
-                      {customPortfolios.map((portfolio) => (
+                      {customAssets.map((asset) => (
                         <div
-                          key={portfolio.id}
+                          key={asset.id}
                           className="space-y-3 rounded-lg border border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-secondary-bg-color,var(--muted))] p-4"
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -708,11 +708,11 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                               <div className="space-y-1">
                                 <Label className="text-xs">{s.assetColor}</Label>
                                 <ColorInput
-                                  value={portfolio.color}
+                                  value={asset.color}
                                   aria-label={s.assetColor}
                                   onChange={(value) =>
-                                    updateCustomPortfolio(
-                                      portfolio.id,
+                                    updateCustomAsset(
+                                      asset.id,
                                       "color",
                                       value,
                                     )
@@ -721,12 +721,12 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">{s.customPortfolioName}</Label>
+                                <Label className="text-xs">{s.customAssetName}</Label>
                                 <Input
-                                  value={portfolio.name}
+                                  value={asset.name}
                                   onChange={(e) =>
-                                    updateCustomPortfolio(
-                                      portfolio.id,
+                                    updateCustomAsset(
+                                      asset.id,
                                       "name",
                                       e.target.value,
                                     )
@@ -735,17 +735,17 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">{s.customPortfolioReturn}</Label>
+                                <Label className="text-xs">{s.customAssetReturn}</Label>
                                 <NumericInput
                                   locale={locale}
                                   kind="percent"
-                                  value={getCustomPortfolioReturnInput(portfolio)}
+                                  value={getCustomAssetReturnInput(asset)}
                                   onChange={(value) =>
-                                    updateCustomPortfolioReturn(portfolio.id, value)
+                                    updateCustomAssetReturn(asset.id, value)
                                   }
                                   onBlur={(e) =>
-                                    commitCustomPortfolioReturn(
-                                      portfolio.id,
+                                    commitCustomAssetReturn(
+                                      asset.id,
                                       e.target.value,
                                     )
                                   }
@@ -755,8 +755,8 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                             </div>
                             <button
                               type="button"
-                              aria-label={s.deleteCustomPortfolio}
-                              onClick={() => void deleteCustomPortfolio(portfolio.id)}
+                              aria-label={s.deleteCustomAsset}
+                              onClick={() => void deleteCustomAsset(asset.id)}
                               className="inline-flex shrink-0 items-center justify-center rounded-lg border border-zinc-200 p-2 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:border-zinc-800 dark:hover:bg-red-950/30 dark:hover:text-red-400"
                             >
                               <Trash2 className="size-4" />
@@ -768,23 +768,23 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                   )}
 
                   <div className="space-y-3 rounded-lg border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
-                    <p className="text-xs text-zinc-500">{s.customPortfolioReturnHint}</p>
+                    <p className="text-xs text-zinc-500">{s.customAssetReturnHint}</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
-                        <Label className="text-xs">{s.customPortfolioName}</Label>
+                        <Label className="text-xs">{s.customAssetName}</Label>
                         <Input
-                          value={newPortfolioName}
-                          onChange={(e) => setNewPortfolioName(e.target.value)}
+                          value={newAssetName}
+                          onChange={(e) => setNewAssetName(e.target.value)}
                           disabled={isLoading || customSaveState === "saving"}
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs">{s.customPortfolioReturn}</Label>
+                        <Label className="text-xs">{s.customAssetReturn}</Label>
                         <NumericInput
                           locale={locale}
                           kind="percent"
-                          value={newPortfolioReturn}
-                          onChange={setNewPortfolioReturn}
+                          value={newAssetReturn}
+                          onChange={setNewAssetReturn}
                           disabled={isLoading || customSaveState === "saving"}
                         />
                       </div>
@@ -796,22 +796,22 @@ export function SettingsPage({ locale, dictionary }: SettingsPageProps) {
                       disabled={
                         isLoading ||
                         customSaveState === "saving" ||
-                        !newPortfolioName.trim() ||
-                        percentInputToDecimal(newPortfolioReturn) == null
+                        !newAssetName.trim() ||
+                        percentInputToDecimal(newAssetReturn) == null
                       }
-                      onClick={() => void addCustomPortfolio()}
+                      onClick={() => void addCustomAsset()}
                     >
                       <Plus className="me-2 size-4" />
-                      {s.addCustomPortfolio}
+                      {s.addCustomAsset}
                     </Button>
                   </div>
 
-                  {customPortfolios.length > 0 && (
+                  {customAssets.length > 0 && (
                     <Button
                       type="button"
                       className="w-full"
                       disabled={isLoading || customSaveState === "saving"}
-                      onClick={() => void saveCustomPortfolios()}
+                      onClick={() => void saveCustomAssets()}
                     >
                       {customSaveState === "saving"
                         ? s.saving

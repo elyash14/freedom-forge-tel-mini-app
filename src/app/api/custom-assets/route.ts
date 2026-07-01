@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import type { CustomPortfolioDto } from "@/lib/custom-portfolios";
+import type { CustomAssetDto } from "@/lib/custom-assets";
 import { defaultColorForIndex, isValidHexColor } from "@/lib/asset-colors";
 import { prisma } from "@/lib/prisma";
 import {
@@ -8,25 +8,25 @@ import {
   unauthorizedResponse,
 } from "@/lib/telegram/plan-access";
 
-type CreateCustomPortfolioBody = {
+type CreateCustomAssetBody = {
   name?: string;
   annualReturnRate?: number;
   color?: string;
 };
 
-function toDto(portfolio: {
+function toDto(asset: {
   id: string;
   name: string;
   annualReturnRate: number;
   color: string;
   sortOrder: number;
-}): CustomPortfolioDto {
+}): CustomAssetDto {
   return {
-    id: portfolio.id,
-    name: portfolio.name,
-    annualReturnRate: portfolio.annualReturnRate,
-    color: portfolio.color,
-    sortOrder: portfolio.sortOrder,
+    id: asset.id,
+    name: asset.name,
+    annualReturnRate: asset.annualReturnRate,
+    color: asset.color,
+    sortOrder: asset.sortOrder,
   };
 }
 
@@ -36,12 +36,12 @@ export async function GET(request: NextRequest) {
     return unauthorizedResponse();
   }
 
-  const portfolios = await prisma.customPortfolio.findMany({
+  const assets = await prisma.customAsset.findMany({
     where: { userId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 
-  return NextResponse.json({ portfolios: portfolios.map(toDto) });
+  return NextResponse.json({ assets: assets.map(toDto) });
 }
 
 export async function POST(request: NextRequest) {
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     return unauthorizedResponse();
   }
 
-  const body = (await request.json()) as CreateCustomPortfolioBody;
+  const body = (await request.json()) as CreateCustomAssetBody;
   const name = body.name?.trim();
 
   if (!name) {
@@ -66,13 +66,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const count = await prisma.customPortfolio.count({ where: { userId } });
+  const count = await prisma.customAsset.count({ where: { userId } });
   const color =
     body.color && isValidHexColor(body.color)
       ? body.color
       : defaultColorForIndex(count);
 
-  const portfolio = await prisma.customPortfolio.create({
+  const asset = await prisma.customAsset.create({
     data: {
       userId,
       name,
@@ -82,5 +82,5 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ portfolio: toDto(portfolio) });
+  return NextResponse.json({ asset: toDto(asset) });
 }

@@ -1,4 +1,7 @@
-import { customPortfolioIdFromKey, isCustomPortfolioKey } from "@/lib/custom-portfolios";
+import {
+  customAssetIdFromKey,
+  isCustomAssetKey,
+} from "@/lib/custom-assets";
 import { isFreeformExternalKey } from "@/lib/external-holdings";
 import { prisma } from "@/lib/prisma";
 
@@ -19,18 +22,18 @@ export async function validateLinkedAssetKey(
     return true;
   }
 
-  if (isCustomPortfolioKey(assetKey)) {
-    const portfolioId = customPortfolioIdFromKey(assetKey);
-    if (!portfolioId) {
+  if (isCustomAssetKey(assetKey)) {
+    const assetId = customAssetIdFromKey(assetKey);
+    if (!assetId) {
       return false;
     }
 
-    const portfolio = await prisma.customPortfolio.findFirst({
-      where: { id: portfolioId, userId },
+    const asset = await prisma.customAsset.findFirst({
+      where: { id: assetId, userId },
       select: { id: true },
     });
 
-    return portfolio != null;
+    return asset != null;
   }
 
   return false;
@@ -50,18 +53,18 @@ export async function resolveLinkedHoldingName(
     return locale === "fa" ? assetClass.labelFa : assetClass.labelEn;
   }
 
-  if (isCustomPortfolioKey(assetKey)) {
-    const portfolioId = customPortfolioIdFromKey(assetKey);
-    if (!portfolioId) {
+  if (isCustomAssetKey(assetKey)) {
+    const assetId = customAssetIdFromKey(assetKey);
+    if (!assetId) {
       return null;
     }
 
-    const portfolio = await prisma.customPortfolio.findFirst({
-      where: { id: portfolioId, userId },
+    const asset = await prisma.customAsset.findFirst({
+      where: { id: assetId, userId },
       select: { name: true },
     });
 
-    return portfolio?.name ?? null;
+    return asset?.name ?? null;
   }
 
   return null;

@@ -22,7 +22,7 @@ import {
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import { resolveAssetColor } from "@/lib/asset-colors";
-import { isCustomPortfolioKey } from "@/lib/custom-portfolios";
+import { isCustomAssetKey } from "@/lib/custom-assets";
 import { isFreeformExternalKey } from "@/lib/external-holdings";
 import { formatTomanCompact, formatYears } from "@/lib/freedom-format";
 import type { CombinedBreakdownItem, PortfolioTotals } from "@/lib/home-stats";
@@ -165,7 +165,7 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
     for (const item of combinedBreakdown) {
       if (isFreeformExternalKey(item.key)) {
         other.push(item);
-      } else if (isCustomPortfolioKey(item.key)) {
+      } else if (isCustomAssetKey(item.key)) {
         custom.push(item);
       } else {
         standard.push(item);

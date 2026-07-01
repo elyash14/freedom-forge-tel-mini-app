@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { calculateFreedom, type PortfolioAllocation } from "@/lib/freedom-calculator";
-import { customPortfolioKey } from "@/lib/custom-portfolios";
+import { customAssetKey } from "@/lib/custom-assets";
 import type { HistoricalReturnRow } from "@/lib/historical-returns";
 import { prisma } from "@/lib/prisma";
 import {
@@ -56,13 +56,13 @@ export async function POST(request: NextRequest) {
     dollar: row.dollar,
   }));
 
-  const customPortfolios = await prisma.customPortfolio.findMany({
+  const customAssets = await prisma.customAsset.findMany({
     where: { userId },
   });
   const customReturns = Object.fromEntries(
-    customPortfolios.map((portfolio) => [
-      customPortfolioKey(portfolio.id),
-      portfolio.annualReturnRate,
+    customAssets.map((asset) => [
+      customAssetKey(asset.id),
+      asset.annualReturnRate,
     ]),
   );
 

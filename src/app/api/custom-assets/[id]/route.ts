@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import type { CustomPortfolioDto } from "@/lib/custom-portfolios";
+import type { CustomAssetDto } from "@/lib/custom-assets";
 import { isValidHexColor } from "@/lib/asset-colors";
 import { prisma } from "@/lib/prisma";
 import {
@@ -8,25 +8,25 @@ import {
   unauthorizedResponse,
 } from "@/lib/telegram/plan-access";
 
-type UpdateCustomPortfolioBody = {
+type UpdateCustomAssetBody = {
   name?: string;
   annualReturnRate?: number;
   color?: string;
 };
 
-function toDto(portfolio: {
+function toDto(asset: {
   id: string;
   name: string;
   annualReturnRate: number;
   color: string;
   sortOrder: number;
-}): CustomPortfolioDto {
+}): CustomAssetDto {
   return {
-    id: portfolio.id,
-    name: portfolio.name,
-    annualReturnRate: portfolio.annualReturnRate,
-    color: portfolio.color,
-    sortOrder: portfolio.sortOrder,
+    id: asset.id,
+    name: asset.name,
+    annualReturnRate: asset.annualReturnRate,
+    color: asset.color,
+    sortOrder: asset.sortOrder,
   };
 }
 
@@ -40,15 +40,15 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const existing = await prisma.customPortfolio.findFirst({
+  const existing = await prisma.customAsset.findFirst({
     where: { id, userId },
   });
 
   if (!existing) {
-    return NextResponse.json({ error: "Portfolio not found." }, { status: 404 });
+    return NextResponse.json({ error: "Asset not found." }, { status: 404 });
   }
 
-  const body = (await request.json()) as UpdateCustomPortfolioBody;
+  const body = (await request.json()) as UpdateCustomAssetBody;
   const name = body.name?.trim();
   const annualReturnRate =
     body.annualReturnRate != null ? Number(body.annualReturnRate) : undefined;
@@ -69,7 +69,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid color." }, { status: 400 });
   }
 
-  const portfolio = await prisma.customPortfolio.update({
+  const asset = await prisma.customAsset.update({
     where: { id },
     data: {
       ...(name !== undefined && { name }),
@@ -78,7 +78,7 @@ export async function PATCH(
     },
   });
 
-  return NextResponse.json({ portfolio: toDto(portfolio) });
+  return NextResponse.json({ asset: toDto(asset) });
 }
 
 export async function DELETE(
@@ -91,15 +91,15 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const existing = await prisma.customPortfolio.findFirst({
+  const existing = await prisma.customAsset.findFirst({
     where: { id, userId },
   });
 
   if (!existing) {
-    return NextResponse.json({ error: "Portfolio not found." }, { status: 404 });
+    return NextResponse.json({ error: "Asset not found." }, { status: 404 });
   }
 
-  await prisma.customPortfolio.delete({ where: { id } });
+  await prisma.customAsset.delete({ where: { id } });
 
   return NextResponse.json({ ok: true });
 }

@@ -42,9 +42,9 @@ import {
 } from "@/lib/historical-returns";
 import {
   buildCustomReturnsMap,
-  customPortfolioKey,
-  type CustomPortfolioDto,
-} from "@/lib/custom-portfolios";
+  customAssetKey,
+  type CustomAssetDto,
+} from "@/lib/custom-assets";
 import { parseLocalizedNumber } from "@/lib/numeric-input";
 import { cn } from "@/lib/utils";
 
@@ -89,7 +89,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
     [],
   );
   const [assetClasses, setAssetClasses] = useState<AssetClassDto[]>([]);
-  const [customPortfolios, setCustomPortfolios] = useState<CustomPortfolioDto[]>(
+  const [customAssets, setCustomAssets] = useState<CustomAssetDto[]>(
     [],
   );
   const [isLoading, setIsLoading] = useState(true);
@@ -116,7 +116,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
         const [historicalRes, assetsRes, customRes] = await Promise.all([
           fetch("/api/historical-returns"),
           fetch("/api/asset-classes"),
-          fetch("/api/custom-portfolios"),
+          fetch("/api/custom-assets"),
         ]);
 
         if (!historicalRes.ok || !assetsRes.ok) {
@@ -126,17 +126,16 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
         const historical = (await historicalRes.json()) as HistoricalReturnRow[];
         const assets = (await assetsRes.json()) as AssetClassDto[];
         const custom = customRes.ok
-          ? ((await customRes.json()) as { portfolios: CustomPortfolioDto[] })
-              .portfolios
+          ? ((await customRes.json()) as { assets: CustomAssetDto[] }).assets
           : [];
 
         setHistoricalData(historical);
         setAssetClasses(assets);
-        setCustomPortfolios(custom);
+        setCustomAssets(custom);
 
         const keys = [
           ...assets.map((asset) => asset.key),
-          ...custom.map((portfolio) => customPortfolioKey(portfolio.id)),
+          ...custom.map((asset) => customAssetKey(asset.id)),
         ];
         initAllocation(keys);
       } catch {
@@ -156,14 +155,14 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
         label: assetLabel(asset, locale),
         isCustom: false,
       })),
-      ...customPortfolios.map((portfolio) => ({
-        key: customPortfolioKey(portfolio.id),
-        label: portfolio.name,
+      ...customAssets.map((asset) => ({
+        key: customAssetKey(asset.id),
+        label: asset.name,
         isCustom: true,
-        annualReturnRate: portfolio.annualReturnRate,
+        annualReturnRate: asset.annualReturnRate,
       })),
     ],
-    [assetClasses, customPortfolios, locale],
+    [assetClasses, customAssets, locale],
   );
 
   const assetKeys = useMemo(
@@ -172,8 +171,8 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   );
 
   const customReturns = useMemo(
-    () => buildCustomReturnsMap(customPortfolios),
-    [customPortfolios],
+    () => buildCustomReturnsMap(customAssets),
+    [customAssets],
   );
 
   const normalizedAllocation = useMemo(
@@ -500,7 +499,7 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
                     <Label>{item.label}</Label>
                     {item.isCustom && item.annualReturnRate != null && (
                       <p className="text-xs text-zinc-500">
-                        {c.customPortfolioReturnLabel}:{" "}
+                        {c.customAssetReturnLabel}:{" "}
                         {formatPercent(item.annualReturnRate, locale)}
                       </p>
                     )}

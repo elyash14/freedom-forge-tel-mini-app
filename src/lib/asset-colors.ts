@@ -1,4 +1,4 @@
-import { customPortfolioKey } from "@/lib/custom-portfolios";
+import { customAssetKey } from "@/lib/custom-assets";
 
 export const DEFAULT_ASSET_COLORS = [
   "#6C9BCF",
@@ -44,7 +44,7 @@ export function resolveAssetColor(
 
 export function buildAssetColorMap(
   assetClasses: { key: string; color: string }[],
-  customPortfolios: { id: string; color: string }[] = [],
+  customAssets: { id: string; color: string }[] = [],
 ): Record<string, string> {
   const map: Record<string, string> = {};
 
@@ -54,9 +54,9 @@ export function buildAssetColorMap(
     }
   }
 
-  for (const portfolio of customPortfolios) {
-    if (isValidHexColor(portfolio.color)) {
-      map[customPortfolioKey(portfolio.id)] = portfolio.color;
+  for (const asset of customAssets) {
+    if (isValidHexColor(asset.color)) {
+      map[customAssetKey(asset.id)] = asset.color;
     }
   }
 
