@@ -2,7 +2,7 @@ import type { Dictionary } from "../types";
 
 export const fa = {
   meta: {
-    title: "فریدام‌فورج",
+    title: "مرکب بازی",
     description: "محاسبه آزادی مالی بر اساس قدرت خرید امروز",
   },
   calculator: {

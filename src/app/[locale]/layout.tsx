@@ -50,6 +50,10 @@ export async function generateMetadata({
   return {
     title: dictionary.meta.title,
     description: dictionary.meta.description,
+    icons: {
+      icon: "/app-logo.png",
+      apple: "/app-logo.png",
+    },
   };
 }
 

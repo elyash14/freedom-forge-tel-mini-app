@@ -19,6 +19,7 @@ import {
 import type { Locale } from "@/i18n/config";
 import { isAdminRole } from "@/lib/auth/role-utils";
 import { ColorSchemeSync } from "@/components/telegram/color-scheme-sync";
+import { AppLoadingScreen } from "@/components/brand/app-loading-screen";
 import {
   clearTelegramSessionSnapshot,
   ensureTelegramSdkReady,
@@ -252,9 +253,7 @@ export function TelegramProvider({
     return (
       <>
         <ColorSchemeSync useTelegramTheme={useTelegramTheme} />
-        <div className="flex min-h-screen w-full items-center justify-center p-8 text-sm text-[var(--tg-theme-text-color,var(--foreground))]">
-          {loadingText}
-        </div>
+        <AppLoadingScreen loadingText={loadingText} />
       </>
     );
   }

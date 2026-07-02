@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AppLogo } from "@/components/brand/app-logo";
 import type { Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/get-dictionary";
 
@@ -16,6 +17,7 @@ export default async function TelegramGatePage({ params }: TelegramGatePageProps
 
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col items-center justify-center gap-6 px-6 py-12 text-center">
+      <AppLogo size="lg" priority />
       <div className="space-y-3">
         <h1 className="text-2xl font-bold">{t.gateTitle}</h1>
         <p className="text-sm text-[var(--tg-theme-hint-color,var(--muted-foreground))]">

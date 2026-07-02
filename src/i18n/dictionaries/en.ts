@@ -2,7 +2,7 @@ import type { Dictionary } from "../types";
 
 export const en = {
   meta: {
-    title: "FreedomForge",
+    title: "Morakab Bazi",
     description: "Financial freedom calculator in today's purchasing power",
   },
   calculator: {
