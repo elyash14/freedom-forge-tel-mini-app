@@ -17,11 +17,12 @@ import {
   YAxis,
 } from "recharts";
 
-import { Plus, Trash2, Wallet } from "lucide-react";
+import { List, Plus, Trash2, Wallet } from "lucide-react";
 
 import { useTelegram } from "@/components/telegram/telegram-provider";
 import { useTelegramBackButton } from "@/components/telegram/use-telegram-back-button";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Drawer,
   DrawerContent,
@@ -590,17 +591,16 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-5 px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
-      <header className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">{p.title}</h1>
-        {!isTelegram && (
-          <Link
-            href={plansHref}
-            className="text-sm font-medium text-[var(--tg-theme-link-color,var(--primary))]"
-          >
-            {p.backToPlans}
-          </Link>
-        )}
-      </header>
+      <PageHeader icon={List} title={p.title} subtitle={p.subtitle} />
+
+      {!isTelegram && (
+        <Link
+          href={plansHref}
+          className="-mt-2 text-xs font-medium text-[var(--tg-theme-link-color,var(--primary))]"
+        >
+          {p.backToPlans}
+        </Link>
+      )}
 
       <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#6C9BCF]/15 via-[#7DD3C0]/10 to-[#E8B86D]/15 p-5 ring-1 ring-[var(--tg-theme-secondary-bg-color,var(--border))]">
         <div className="flex items-center gap-3">

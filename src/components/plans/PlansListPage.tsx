@@ -4,6 +4,8 @@ import { ChevronRight, List, Star, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { PageHeader } from "@/components/ui/page-header";
+
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 import { formatTomanCompact, formatYears } from "@/lib/freedom-format";
@@ -92,12 +94,11 @@ export function PlansListPage({ locale, dictionary }: PlansListPageProps) {
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-5 px-4 py-6 pb-24">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">
-          {dictionary.nav.plans}
-        </h1>
-        <p className="text-sm text-zinc-500">{c.historyTitle}</p>
-      </header>
+      <PageHeader
+        icon={List}
+        title={dictionary.nav.plans}
+        subtitle={c.historyTitle}
+      />
 
       {isLoading ? (
         <p className="py-12 text-center text-sm text-zinc-500">Loading...</p>

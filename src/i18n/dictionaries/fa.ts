@@ -6,7 +6,7 @@ export const fa = {
     description: "محاسبه آزادی مالی بر اساس قدرت خرید امروز",
   },
   calculator: {
-    title: "فریدام‌فورج",
+    title: "محاسبه آزادی مالی",
     subtitle: "همه اعداد به «ارزش پول امروز» — بدون نیاز به حدس تورم آینده.",
     step1: "هدف",
     step2: "سبد سرمایه‌گذاری",
@@ -125,7 +125,7 @@ export const fa = {
   },
   externalAssets: {
     title: "دارایی خارج از طرح",
-    subtitle: "دارایی‌های شما خارج از طرح آزادی — هر زمان به‌روز کنید.",
+    subtitle: "دارایی‌های شما خارج از طرح آزادی .",
     totalBalance: "مجموع موجودی",
     addAsset: "افزودن دارایی",
     addDrawerTitle: "افزودن دارایی",
@@ -207,6 +207,7 @@ export const fa = {
   },
   planDashboard: {
     title: "پیشرفت طرح",
+    subtitle: "پیگیری پیشرفت و ثبت واریز ماهانه.",
     backToPlans: "برگشت به طرح‌ها",
     targetCapital: "سرمایه هدف",
     monthlyContribution: "سرمایه‌گذاری ماهانه",

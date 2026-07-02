@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Drawer,
   DrawerContent,
@@ -315,21 +316,8 @@ export function ExternalAssetsPage({
   }
 
   return (
-    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-5 px-4 py-8 pb-24">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{e.title}</h1>
-          <p className="mt-1 text-sm text-zinc-500">{e.subtitle}</p>
-        </div>
-        <Button
-          type="button"
-          className="h-10 shrink-0 gap-1.5 px-3"
-          onClick={openAddDrawer}
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">{e.addAsset}</span>
-        </Button>
-      </header>
+    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-5 px-4 py-6 pb-24">
+      <PageHeader icon={Wallet} title={e.title} subtitle={e.subtitle} />
 
       {loadError && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
@@ -369,10 +357,6 @@ export function ExternalAssetsPage({
             <p className="font-medium">{e.emptyState}</p>
             <p className="mt-1 text-sm text-zinc-500">{e.emptyStateHint}</p>
           </div>
-          <Button type="button" className="mt-2 gap-1.5" onClick={openAddDrawer}>
-            <Plus className="h-4 w-4" />
-            {e.addAsset}
-          </Button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -570,6 +554,24 @@ export function ExternalAssetsPage({
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-bg-color,var(--background))] p-3 sm:hidden">
+        <Button type="button" className="h-12 w-full gap-1.5" onClick={openAddDrawer}>
+          <Plus className="h-5 w-5" />
+          {e.addAsset}
+        </Button>
+      </div>
+
+      <div className="hidden sm:block">
+        <Button
+          type="button"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] end-8 z-40 h-14 rounded-full px-6 shadow-lg"
+          onClick={openAddDrawer}
+        >
+          <Plus className="me-2 h-5 w-5" />
+          {e.addAsset}
+        </Button>
+      </div>
     </div>
   );
 }

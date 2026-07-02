@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, Plus, Settings } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -14,6 +14,7 @@ import {
   decimalToPercentInput,
   type AssetClassDto,
 } from "@/components/settings/settings-utils";
+import { PageHeader } from "@/components/ui/page-header";
 import { useAppPreferences } from "@/components/preferences/app-preferences-provider";
 import { useTelegram } from "@/components/telegram/telegram-provider";
 import { Button } from "@/components/ui/button";
@@ -204,12 +205,11 @@ export function SettingsPage({
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 py-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">{s.title}</h1>
-        <p className="text-sm text-[var(--tg-theme-hint-color,var(--muted-foreground))]">
-          {s.subtitle}
-        </p>
-      </header>
+      <PageHeader
+        icon={Settings}
+        title={s.title}
+        subtitle={s.subtitle}
+      />
 
       {loadError && (
         <p className="text-sm text-red-500" role="alert">

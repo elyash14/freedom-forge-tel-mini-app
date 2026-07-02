@@ -192,6 +192,7 @@ export type Dictionary = {
   };
   planDashboard: {
     title: string;
+    subtitle: string;
     backToPlans: string;
     targetCapital: string;
     monthlyContribution: string;

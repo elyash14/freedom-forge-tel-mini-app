@@ -1,9 +1,10 @@
 "use client";
 
-import { Check, Target } from "lucide-react";
+import { Calculator, Check, Target } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Card,
   CardContent,
@@ -671,10 +672,11 @@ export function FreedomCalculator({ locale, dictionary }: FreedomCalculatorProps
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-8 pb-28">
       <header className="space-y-4">
-        <div className="space-y-2 text-center sm:text-start">
-          <h1 className="text-3xl font-bold tracking-tight">{c.title}</h1>
-          <p className="text-zinc-600 dark:text-zinc-400">{c.subtitle}</p>
-        </div>
+        <PageHeader
+          icon={Calculator}
+          title={c.title}
+          subtitle={c.subtitle}
+        />
         <CalculatorStepNav
           steps={steps}
           currentStep={step}

@@ -6,7 +6,7 @@ export const en = {
     description: "Financial freedom calculator in today's purchasing power",
   },
   calculator: {
-    title: "FreedomForge",
+    title: "Freedom calculator",
     subtitle: "All numbers in today's money — no guessing future inflation.",
     step1: "Goal",
     step2: "Portfolio",
@@ -125,7 +125,7 @@ export const en = {
   },
   externalAssets: {
     title: "Outside-plan assets",
-    subtitle: "Your assets outside the freedom plan — update anytime.",
+    subtitle: "Your assets outside the freedom plan.",
     totalBalance: "Total balance",
     addAsset: "Add asset",
     addDrawerTitle: "Add asset",
@@ -206,7 +206,8 @@ export const en = {
     customAssetsEmpty: "You have not added any personal assets yet.",
   },
   planDashboard: {
-    title: "Plan Progress",
+    title: "Plan progress",
+    subtitle: "Track progress and log monthly contributions.",
     backToPlans: "Back to plans",
     targetCapital: "Target Capital",
     monthlyContribution: "Monthly Contribution",

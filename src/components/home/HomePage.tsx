@@ -320,10 +320,7 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
 
   if (!plan && !hasAnyAssets) {
     return (
-      <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-8 pb-24">
-        <header>
-          <h1 className="text-3xl font-bold tracking-tight">{h.title}</h1>
-        </header>
+      <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-4 py-6 pb-24">
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--tg-theme-secondary-bg-color,var(--border))] px-6 py-14 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-900">
             <Wallet className="h-7 w-7 text-zinc-400" />
@@ -342,18 +339,6 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-5 px-4 py-6 pb-24">
-      <header className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">{h.title}</h1>
-        {hasAnyAssets && (
-          <Link
-            href={`/${locale}/external-assets`}
-            className="text-sm font-medium text-[var(--tg-theme-link-color,var(--primary))]"
-          >
-            {h.manageExternal}
-          </Link>
-        )}
-      </header>
-
       {hasAnyAssets && (
         <>
           <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#6C9BCF]/15 via-[#7DD3C0]/10 to-[#E8B86D]/15 p-5 ring-1 ring-[var(--tg-theme-secondary-bg-color,var(--border))]">
