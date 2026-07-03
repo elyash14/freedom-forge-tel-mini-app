@@ -35,7 +35,7 @@ RUN addgroup --system --gid 1001 nodejs \
   && mkdir -p /opt/db \
   && cd /opt/db \
   && npm init -y \
-  && npm install prisma@7.8.0 tsx@4.19.4 dotenv@17.3.1 @prisma/adapter-pg@7.8.0 pg@8.16.0
+  && npm install prisma@7.8.0 @prisma/client@7.8.0 tsx@4.19.4 dotenv@17.3.1 @prisma/adapter-pg@7.8.0 pg@8.16.0
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
