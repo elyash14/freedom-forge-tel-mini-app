@@ -48,7 +48,10 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src/generated/prisma ./src/generated/prisma
 
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+  && mkdir -p /app/node_modules \
+  && ln -sf /opt/db/node_modules/@prisma /app/node_modules/@prisma \
+  && ln -sf /opt/db/node_modules/dotenv /app/node_modules/dotenv
 
 USER nextjs
 
