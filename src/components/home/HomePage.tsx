@@ -515,7 +515,7 @@ export function HomePage({ locale, dictionary }: HomePageProps) {
       )}
 
       {plan ? (
-        <section className="space-y-3 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] pt-5">
+        <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-zinc-500">
               {h.activePlan}
