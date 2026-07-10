@@ -27,6 +27,7 @@ import {
   Drawer,
   DrawerContent,
   DrawerDescription,
+  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
@@ -972,20 +973,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
       </section>
 
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--tg-theme-secondary-bg-color,var(--border))] bg-[var(--tg-theme-bg-color,var(--background))] p-3 sm:hidden">
-        {isDrawerOpen ? (
-          <Button
-            type="button"
-            className="h-12 w-full"
-            disabled={!canSaveProgress || saveState === "saving"}
-            onClick={() => void saveProgress()}
-          >
-            {saveState === "saving"
-              ? p.saving
-              : saveState === "saved"
-                ? p.saved
-                : p.saveProgress}
-          </Button>
-        ) : (
+        {!isDrawerOpen && (
           <Button
             type="button"
             className="h-12 w-full"
@@ -1014,7 +1002,7 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
             <DrawerTitle>{p.addProgressTitle}</DrawerTitle>
             <DrawerDescription>{p.addProgressHint}</DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-6">
+          <div className="overflow-y-auto px-4 pb-4">
             <div className="space-y-5">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -1116,24 +1104,22 @@ export function PlanDashboard({ locale, planId, dictionary }: PlanDashboardProps
                   </span>
                 </div>
               </div>
-
-              <Button
-                type="button"
-                className="hidden h-12 w-full sm:flex"
-                disabled={
-                  (totalContribution === 0 && totalValue === 0) ||
-                  saveState === "saving"
-                }
-                onClick={() => void saveProgress()}
-              >
-                {saveState === "saving"
-                  ? p.saving
-                  : saveState === "saved"
-                    ? p.saved
-                    : p.saveProgress}
-              </Button>
             </div>
           </div>
+          <DrawerFooter className="border-t border-[var(--tg-theme-secondary-bg-color,var(--border))]">
+            <Button
+              type="button"
+              className="h-12 w-full"
+              disabled={!canSaveProgress || saveState === "saving"}
+              onClick={() => void saveProgress()}
+            >
+              {saveState === "saving"
+                ? p.saving
+                : saveState === "saved"
+                  ? p.saved
+                  : p.saveProgress}
+            </Button>
+          </DrawerFooter>
         </DrawerContent>
       </Drawer>
     </div>
